@@ -115,41 +115,38 @@ jobs:
         run: |
           SYNC_BRANCH="${{ steps.merge.outputs.sync_branch }}"
 
-          # Create an issue to trigger Copilot
-          ISSUE_BODY=$(cat << 'EOF'
+          # Read conflict information
+          CONFLICT_FILES=$(cat /tmp/conflict_files.txt || echo 'Unable to list conflict files')
+          CONFLICT_STATUS=$(cat /tmp/conflict_status.txt || echo 'Unable to get status')
+
+          # Create issue body
+          ISSUE_BODY=$(cat << EOF
           ## Upstream Sync Conflict Resolution Needed
 
           This is an automated request to resolve merge conflicts in the upstream sync process.
 
-          **Branch:** `$SYNC_BRANCH`
-          **Target:** `main`
+          **Branch:** \`$SYNC_BRANCH\`
+          **Target:** \`main\`
 
           ### Conflicts detected in:
-          ```
+          \`\`\`
           $CONFLICT_FILES
-          ```
+          \`\`\`
 
           ### Status:
-          ```
+          \`\`\`
           $CONFLICT_STATUS
-          ```
+          \`\`\`
 
-          @copilot Please resolve the merge conflicts in branch `$SYNC_BRANCH` and create a pull request to `main`.
+          @copilot Please resolve the merge conflicts in branch \`$SYNC_BRANCH\` and create a pull request to \`main\`.
 
           Steps:
-          1. Checkout the branch `$SYNC_BRANCH`
+          1. Checkout the branch \`$SYNC_BRANCH\`
           2. Resolve all merge conflicts
           3. Commit the resolved changes
-          4. Create a pull request to merge into `main`
+          4. Create a pull request to merge into \`main\`
           EOF
           )
-
-          CONFLICT_FILES=$(cat /tmp/conflict_files.txt || echo 'Unable to list conflict files')
-          CONFLICT_STATUS=$(cat /tmp/conflict_status.txt || echo 'Unable to get status')
-
-          ISSUE_BODY="${ISSUE_BODY//\$SYNC_BRANCH/$SYNC_BRANCH}"
-          ISSUE_BODY="${ISSUE_BODY//\$CONFLICT_FILES/$CONFLICT_FILES}"
-          ISSUE_BODY="${ISSUE_BODY//\$CONFLICT_STATUS/$CONFLICT_STATUS}"
 
           gh issue create \
             --title "Resolve upstream sync conflicts for $SYNC_BRANCH" \
