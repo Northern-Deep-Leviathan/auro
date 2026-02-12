@@ -65,7 +65,7 @@ jobs:
           fi
 
           # Push upstream-sync branch
-          git push origin upstream-sync --force
+          git push origin upstream-sync --force-with-lease
 
       - name: Rebase dev branch
         run: |
