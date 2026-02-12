@@ -75,8 +75,14 @@ jobs:
           SYNC_BRANCH="sync-upstream-$(date +%Y%m%d-%H%M%S)"
           echo "sync_branch=$SYNC_BRANCH" >> $GITHUB_OUTPUT
 
-          # Start from main branch
-          git checkout main || git checkout -b main origin/main
+          # Ensure main branch exists and is up to date
+          git fetch origin main:main || git fetch origin dev:main || {
+            echo "Error: Could not fetch main or dev branch from origin"
+            exit 1
+          }
+
+          # Checkout main branch
+          git checkout main
 
           # Create new sync branch from main
           git checkout -b $SYNC_BRANCH
@@ -92,7 +98,11 @@ jobs:
             # Save conflict information
             git status > /tmp/conflict_status.txt
             git diff --name-only --diff-filter=U > /tmp/conflict_files.txt
-            git push origin $SYNC_BRANCH || true
+            # Try to push the branch with conflicts
+            if ! git push origin $SYNC_BRANCH 2>/tmp/push_error.txt; then
+              echo "Warning: Could not push branch with conflicts"
+              cat /tmp/push_error.txt
+            fi
           fi
 
       - name: Create Pull Request
