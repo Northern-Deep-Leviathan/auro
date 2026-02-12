@@ -1,0 +1,84 @@
+name: upstream-sync
+
+on:
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+jobs:
+  sync:
+    name: Sync with Upstream
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/anomalyco/opencode.git || true
+          git remote set-url upstream https://github.com/anomalyco/opencode.git
+
+      - name: Fetch upstream changes
+        run: |
+          git fetch upstream --tags
+          echo "Upstream fetched successfully"
+
+      - name: Update upstream-sync branch
+        run: |
+          # Check if upstream-sync branch exists locally
+          if git show-ref --verify --quiet refs/heads/upstream-sync; then
+            git checkout upstream-sync
+          else
+            # Check if it exists remotely
+            if git ls-remote --heads origin upstream-sync | grep upstream-sync; then
+              git checkout -b upstream-sync origin/upstream-sync
+            else
+              # Create new branch from upstream/dev or upstream/main
+              if git show-ref --verify --quiet refs/remotes/upstream/dev; then
+                git checkout -b upstream-sync upstream/dev
+              elif git show-ref --verify --quiet refs/remotes/upstream/main; then
+                git checkout -b upstream-sync upstream/main
+              else
+                echo "Error: Could not find upstream/dev or upstream/main"
+                exit 1
+              fi
+            fi
+          fi
+
+          # Update upstream-sync to match upstream
+          if git show-ref --verify --quiet refs/remotes/upstream/dev; then
+            git reset --hard upstream/dev
+          elif git show-ref --verify --quiet refs/remotes/upstream/main; then
+            git reset --hard upstream/main
+          fi
+
+          # Push upstream-sync branch
+          git push origin upstream-sync --force-with-lease
+
+      - name: Rebase dev branch
+        run: |
+          # Checkout dev branch
+          git checkout dev
+
+          # Attempt to rebase onto upstream-sync
+          if git rebase upstream-sync; then
+            echo "Rebase successful"
+            git push origin dev --force-with-lease
+          else
+            echo "Rebase failed with conflicts"
+            git rebase --abort
+            echo "::warning::Rebase onto upstream-sync failed due to conflicts. Manual intervention required."
+            exit 1
+          fi
