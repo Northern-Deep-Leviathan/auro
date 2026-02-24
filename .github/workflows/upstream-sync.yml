@@ -44,6 +44,7 @@ jobs:
           else
             # Check if it exists remotely
             if git ls-remote --heads origin upstream-sync | grep upstream-sync; then
+              git fetch origin upstream-sync
               git checkout -b upstream-sync origin/upstream-sync
             else
               # Create new branch from upstream/dev or upstream/main
