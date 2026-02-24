@@ -14,6 +14,7 @@ jobs:
       contents: write
       pull-requests: write
       issues: write
+      workflows: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -87,17 +88,22 @@ jobs:
           # Create new sync branch from main
           git checkout -b $SYNC_BRANCH
 
-          # Attempt to merge upstream-sync
-          if git merge upstream-sync --no-ff -m "Merge upstream changes"; then
+          # Attempt to merge upstream-sync without auto-committing
+          if git merge upstream-sync --no-ff --no-commit; then
+            # Restore .github from our main branch to exclude upstream workflow changes
+            git checkout main -- .github/
+            git commit -m "Merge upstream changes (excluding .github)"
             echo "merge_status=success" >> $GITHUB_OUTPUT
             echo "Merge successful"
             git push origin $SYNC_BRANCH
           else
             echo "merge_status=conflict" >> $GITHUB_OUTPUT
             echo "Merge has conflicts"
-            # Save conflict information
+            # Restore .github from our main branch even in conflict case
+            git checkout main -- .github/
+            # Save conflict information (excluding .github)
             git status > /tmp/conflict_status.txt
-            git diff --name-only --diff-filter=U > /tmp/conflict_files.txt
+            git diff --name-only --diff-filter=U | grep -v '^\.github/' > /tmp/conflict_files.txt
             # Try to push the branch with conflicts
             if ! git push origin $SYNC_BRANCH 2>/tmp/push_error.txt; then
               echo "Warning: Could not push branch with conflicts"
