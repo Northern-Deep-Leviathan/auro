@@ -2,8 +2,8 @@ name: upstream-sync
 
 on:
   schedule:
-    # Run daily at 2 AM UTC
-    - cron: "0 2 * * *"
+    # Run every Saturday at 7:00 PM (19:00 UTC)
+    - cron: "0 19 * * 6"
   workflow_dispatch:
 
 jobs:
@@ -13,6 +13,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      issues: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -67,18 +68,97 @@ jobs:
           # Push upstream-sync branch
           git push origin upstream-sync --force-with-lease
 
-      - name: Rebase dev branch
+      - name: Create sync branch and attempt merge
+        id: merge
         run: |
-          # Checkout dev branch
-          git checkout dev
+          # Create a new branch for the sync PR
+          SYNC_BRANCH="sync-upstream-$(date +%Y%m%d-%H%M%S)"
+          echo "sync_branch=$SYNC_BRANCH" >> $GITHUB_OUTPUT
 
-          # Attempt to rebase onto upstream-sync
-          if git rebase upstream-sync; then
-            echo "Rebase successful"
-            git push origin dev --force-with-lease
-          else
-            echo "Rebase failed with conflicts"
-            git rebase --abort
-            echo "::warning::Rebase onto upstream-sync failed due to conflicts. Manual intervention required."
+          # Ensure main branch exists and is up to date
+          git fetch origin main:main || git fetch origin dev:main || {
+            echo "Error: Could not fetch main or dev branch from origin"
             exit 1
+          }
+
+          # Checkout main branch
+          git checkout main
+
+          # Create new sync branch from main
+          git checkout -b $SYNC_BRANCH
+
+          # Attempt to merge upstream-sync
+          if git merge upstream-sync --no-ff -m "Merge upstream changes"; then
+            echo "merge_status=success" >> $GITHUB_OUTPUT
+            echo "Merge successful"
+            git push origin $SYNC_BRANCH
+          else
+            echo "merge_status=conflict" >> $GITHUB_OUTPUT
+            echo "Merge has conflicts"
+            # Save conflict information
+            git status > /tmp/conflict_status.txt
+            git diff --name-only --diff-filter=U > /tmp/conflict_files.txt
+            # Try to push the branch with conflicts
+            if ! git push origin $SYNC_BRANCH 2>/tmp/push_error.txt; then
+              echo "Warning: Could not push branch with conflicts"
+              cat /tmp/push_error.txt
+            fi
           fi
+
+      - name: Create Pull Request
+        if: steps.merge.outputs.merge_status == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SYNC_BRANCH="${{ steps.merge.outputs.sync_branch }}"
+          gh pr create \
+            --base main \
+            --head $SYNC_BRANCH \
+            --title "Sync upstream changes $(date +%Y-%m-%d)" \
+            --body "This PR syncs changes from upstream repository. Automated merge completed successfully." \
+            --label "automated,upstream-sync"
+
+      - name: Trigger Copilot for conflict resolution
+        if: steps.merge.outputs.merge_status == 'conflict'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SYNC_BRANCH="${{ steps.merge.outputs.sync_branch }}"
+
+          # Read conflict information
+          CONFLICT_FILES=$(cat /tmp/conflict_files.txt || echo 'Unable to list conflict files')
+          CONFLICT_STATUS=$(cat /tmp/conflict_status.txt || echo 'Unable to get status')
+
+          # Create issue body
+          ISSUE_BODY=$(cat << EOF
+          ## Upstream Sync Conflict Resolution Needed
+
+          This is an automated request to resolve merge conflicts in the upstream sync process.
+
+          **Branch:** \`$SYNC_BRANCH\`
+          **Target:** \`main\`
+
+          ### Conflicts detected in:
+          \`\`\`
+          $CONFLICT_FILES
+          \`\`\`
+
+          ### Status:
+          \`\`\`
+          $CONFLICT_STATUS
+          \`\`\`
+
+          @copilot Please resolve the merge conflicts in branch \`$SYNC_BRANCH\` and create a pull request to \`main\`.
+
+          Steps:
+          1. Checkout the branch \`$SYNC_BRANCH\`
+          2. Resolve all merge conflicts
+          3. Commit the resolved changes
+          4. Create a pull request to merge into \`main\`
+          EOF
+          )
+
+          gh issue create \
+            --title "Resolve upstream sync conflicts for $SYNC_BRANCH" \
+            --body "$ISSUE_BODY" \
+            --label "copilot,conflict-resolution,upstream-sync"
