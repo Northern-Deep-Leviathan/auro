@@ -90,22 +90,32 @@ jobs:
           # Create new sync branch from main
           git checkout -b $SYNC_BRANCH
 
-          # Register the 'ours' merge driver (.gitattributes already maps .github/** to it)
-          git config merge.ours.driver true
+          # Attempt merge; allow failure so we can resolve .github/ ourselves
+          # --no-commit is required: prevents auto-commit on clean merge so that
+          # HEAD still points to our commit when we restore .github/ below
+          git merge upstream-sync --no-commit || true
 
-          # Attempt to merge upstream-sync without auto-committing
-          if git merge upstream-sync --no-ff --no-commit; then
-            git commit -m "Merge upstream changes (excluding .github)"
+          # Always overwrite .github/ with our version, resolving any conflict there
+          git checkout HEAD -- .github/
+
+          # Check whether any real conflicts remain outside .github/
+          CONFLICT_FILES=$(git diff --name-only --diff-filter=U | grep -v '^\.github/' || true)
+
+          if [ -z "$CONFLICT_FILES" ]; then
+            if ! git diff --cached --quiet; then
+              git commit -m "Merge upstream changes (excluding .github)"
+            else
+              # All upstream differences were in .github/ only; nothing left to merge
+              git merge --abort 2>/dev/null || true
+            fi
             echo "merge_status=success" >> $GITHUB_OUTPUT
             echo "Merge successful"
             git push origin $SYNC_BRANCH
           else
             echo "merge_status=conflict" >> $GITHUB_OUTPUT
             echo "Merge has conflicts"
-            # Save conflict information (excluding .github)
             git status > /tmp/conflict_status.txt
-            git diff --name-only --diff-filter=U | grep -v '^\.github/' > /tmp/conflict_files.txt
-            # Try to push the branch with conflicts
+            echo "$CONFLICT_FILES" > /tmp/conflict_files.txt
             if ! git push origin $SYNC_BRANCH 2>/tmp/push_error.txt; then
               echo "Warning: Could not push branch with conflicts"
               cat /tmp/push_error.txt
