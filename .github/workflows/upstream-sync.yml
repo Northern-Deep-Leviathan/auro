@@ -130,6 +130,7 @@ jobs:
         if: steps.merge.outputs.merge_status == 'success'
         env:
           GH_TOKEN: ${{ steps.committer.outputs.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           SYNC_BRANCH="${{ steps.merge.outputs.sync_branch }}"
           gh label create "automated" --color "#0075ca" --force
@@ -145,6 +146,7 @@ jobs:
         if: steps.merge.outputs.merge_status == 'conflict'
         env:
           GH_TOKEN: ${{ steps.committer.outputs.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           SYNC_BRANCH="${{ steps.merge.outputs.sync_branch }}"
 
