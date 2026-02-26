@@ -129,9 +129,11 @@ jobs:
       - name: Create Pull Request
         if: steps.merge.outputs.merge_status == 'success'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.committer.outputs.token }}
         run: |
           SYNC_BRANCH="${{ steps.merge.outputs.sync_branch }}"
+          gh label create "automated" --color "#0075ca" --force
+          gh label create "upstream-sync" --color "#e4e669" --force
           gh pr create \
             --base main \
             --head $SYNC_BRANCH \
@@ -142,7 +144,7 @@ jobs:
       - name: Trigger Copilot for conflict resolution
         if: steps.merge.outputs.merge_status == 'conflict'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.committer.outputs.token }}
         run: |
           SYNC_BRANCH="${{ steps.merge.outputs.sync_branch }}"
 
@@ -179,6 +181,9 @@ jobs:
           EOF
           )
 
+          gh label create "copilot" --color "#5319e7" --force
+          gh label create "conflict-resolution" --color "#d93f0b" --force
+          gh label create "upstream-sync" --color "#e4e669" --force
           gh issue create \
             --title "Resolve upstream sync conflicts for $SYNC_BRANCH" \
             --body "$ISSUE_BODY" \
