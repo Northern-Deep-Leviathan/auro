@@ -18,6 +18,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup git committer
         id: committer
@@ -88,10 +90,11 @@ jobs:
           # Create new sync branch from main
           git checkout -b $SYNC_BRANCH
 
+          # Register the 'ours' merge driver (.gitattributes already maps .github/** to it)
+          git config merge.ours.driver true
+
           # Attempt to merge upstream-sync without auto-committing
           if git merge upstream-sync --no-ff --no-commit; then
-            # Restore .github from our main branch to exclude upstream workflow changes
-            git checkout main -- .github/
             git commit -m "Merge upstream changes (excluding .github)"
             echo "merge_status=success" >> $GITHUB_OUTPUT
             echo "Merge successful"
@@ -99,8 +102,6 @@ jobs:
           else
             echo "merge_status=conflict" >> $GITHUB_OUTPUT
             echo "Merge has conflicts"
-            # Restore .github from our main branch even in conflict case
-            git checkout main -- .github/
             # Save conflict information (excluding .github)
             git status > /tmp/conflict_status.txt
             git diff --name-only --diff-filter=U | grep -v '^\.github/' > /tmp/conflict_files.txt
