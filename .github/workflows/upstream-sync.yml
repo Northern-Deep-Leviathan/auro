@@ -95,7 +95,11 @@ jobs:
           # HEAD still points to our commit when we restore .github/ below
           git merge upstream-sync --no-commit || true
 
-          # Always overwrite .github/ with our version, resolving any conflict there
+          # Always overwrite .github/ with our version, resolving any conflict there.
+          # First wipe all .github/ entries from the index and workdir (including
+          # unmerged "modify/delete" entries that would cause checkout to fail with
+          # exit code 128), then restore cleanly from HEAD.
+          git rm -rf .github/ 2>/dev/null || true
           git checkout HEAD -- .github/
 
           # Check whether any real conflicts remain outside .github/
