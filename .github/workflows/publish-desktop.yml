@@ -114,7 +114,9 @@ jobs:
       version: ${{ needs.version.outputs.version }}
 
   build-tauri:
-    needs: version
+    needs: 
+      - version
+      - build-cli
     continue-on-error: false
     strategy:
       fail-fast: false
