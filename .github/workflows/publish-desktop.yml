@@ -104,6 +104,7 @@ jobs:
           OPENCODE_VERSION: ${{ needs.version.outputs.version }}
           OPENCODE_RELEASE: ${{ needs.version.outputs.release }}
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
 
       - uses: actions/upload-artifact@v4
         with:
