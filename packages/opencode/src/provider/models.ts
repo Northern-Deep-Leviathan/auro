@@ -6,6 +6,7 @@ import { Installation } from "../installation"
 import { Flag } from "../flag/flag"
 import { lazy } from "@/util/lazy"
 import { Filesystem } from "../util/filesystem"
+import { ProviderAllowlist } from "./allowlist"
 
 // Try to import bundled snapshot (generated at build time)
 // Falls back to undefined in dev mode when snapshot doesn't exist
@@ -100,7 +101,20 @@ export namespace ModelsDev {
 
   export async function get() {
     const result = await Data()
-    return result as Record<string, Provider>
+    const all = result as Record<string, Provider>
+
+    // Apply build-time provider allowlist
+    if (ProviderAllowlist.isActive()) {
+      const filtered: Record<string, Provider> = {}
+      for (const [id, provider] of Object.entries(all)) {
+        if (ProviderAllowlist.isAllowed(id)) {
+          filtered[id] = provider
+        }
+      }
+      return filtered
+    }
+
+    return all
   }
 
   export async function refresh() {

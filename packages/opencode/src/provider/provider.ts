@@ -44,6 +44,7 @@ import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
 import { GoogleAuth } from "google-auth-library"
 import { ProviderTransform } from "./transform"
 import { Installation } from "../installation"
+import { ProviderAllowlist } from "./allowlist"
 
 export namespace Provider {
   const log = Log.create({ service: "provider" })
@@ -764,6 +765,8 @@ export namespace Provider {
     const enabled = config.enabled_providers ? new Set(config.enabled_providers) : null
 
     function isProviderAllowed(providerID: string): boolean {
+      // Build-time allowlist takes highest priority
+      if (!ProviderAllowlist.isAllowed(providerID)) return false
       if (enabled && !enabled.has(providerID)) return false
       if (disabled.has(providerID)) return false
       return true

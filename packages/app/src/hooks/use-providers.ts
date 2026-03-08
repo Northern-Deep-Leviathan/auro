@@ -3,7 +3,7 @@ import { decode64 } from "@/utils/base64"
 import { useParams } from "@solidjs/router"
 import { createMemo } from "solid-js"
 
-export const popularProviders = [
+const defaultPopularProviders = [
   "opencode",
   "opencode-go",
   "anthropic",
@@ -13,7 +13,9 @@ export const popularProviders = [
   "openrouter",
   "vercel",
 ]
-const popularProviderSet = new Set(popularProviders)
+
+// Re-export for backward compatibility with components that use the static list for sorting
+export const popularProviders = defaultPopularProviders
 
 export function useProviders() {
   const globalSync = useGlobalSync()
@@ -31,7 +33,13 @@ export function useProviders() {
   const paid = createMemo(() =>
     connected().filter((p) => p.id !== "opencode" || Object.values(p.models).find((m) => m.cost?.input)),
   )
-  const popular = createMemo(() => providers().all.filter((p) => popularProviderSet.has(p.id)))
+  const popularProviderList = createMemo(() => {
+    const serverPopular = providers().popular
+    if (serverPopular && serverPopular.length > 0) return serverPopular
+    return defaultPopularProviders
+  })
+  const popularProviderSet = createMemo(() => new Set(popularProviderList()))
+  const popular = createMemo(() => providers().all.filter((p) => popularProviderSet().has(p.id)))
   return {
     all: createMemo(() => providers().all),
     default: createMemo(() => providers().default),

@@ -1,0 +1,5 @@
+# Force LF line endings for all text files
+* text=auto eol=lf
+
+# Force LF for auto-generated SDK files
+packages/sdk/**/*.ts text eol=lf

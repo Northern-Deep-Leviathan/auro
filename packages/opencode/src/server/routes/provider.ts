@@ -5,9 +5,21 @@ import { Config } from "../../config/config"
 import { Provider } from "../../provider/provider"
 import { ModelsDev } from "../../provider/models"
 import { ProviderAuth } from "../../provider/auth"
+import { ProviderAllowlist } from "../../provider/allowlist"
 import { mapValues } from "remeda"
 import { errors } from "../error"
 import { lazy } from "../../util/lazy"
+
+const CHINA_POPULAR = [
+  "deepseek",
+  "alibaba-cn",
+  "zhipuai",
+  "moonshotai-cn",
+  "minimax-cn",
+  "siliconflow-cn",
+  "stepfun",
+  "kimi-for-coding",
+]
 
 export const ProviderRoutes = lazy(() =>
   new Hono()
@@ -27,6 +39,7 @@ export const ProviderRoutes = lazy(() =>
                     all: ModelsDev.Provider.array(),
                     default: z.record(z.string(), z.string()),
                     connected: z.array(z.string()),
+                    popular: z.array(z.string()).optional(),
                   }),
                 ),
               },
@@ -56,6 +69,7 @@ export const ProviderRoutes = lazy(() =>
           all: Object.values(providers),
           default: mapValues(providers, (item) => Provider.sort(Object.values(item.models))[0].id),
           connected: Object.keys(connected),
+          popular: ProviderAllowlist.isActive() ? CHINA_POPULAR : undefined,
         })
       },
     )

@@ -3918,6 +3918,7 @@ export type ProviderListResponses = {
       [key: string]: string
     }
     connected: Array<string>
+    popular?: Array<string>
   }
 }
 
