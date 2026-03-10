@@ -1129,6 +1129,12 @@ export namespace Config {
       layout: Layout.optional().describe("@deprecated Always uses stretch layout."),
       permission: Permission.optional(),
       tools: z.record(z.string(), z.boolean()).optional(),
+      n8n: z
+        .object({
+          url: z.string().describe("n8n instance URL"),
+        })
+        .optional()
+        .describe("n8n workflow automation configuration"),
       enterprise: z
         .object({
           url: z.string().optional().describe("Enterprise URL"),

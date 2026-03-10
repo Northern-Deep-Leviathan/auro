@@ -28,6 +28,7 @@ import { LspTool } from "./lsp"
 import { Truncate } from "./truncation"
 
 import { ApplyPatchTool } from "./apply_patch"
+import { N8nTools } from "./n8n"
 import { Glob } from "../util/glob"
 import { pathToFileURL } from "url"
 
@@ -95,7 +96,7 @@ export namespace ToolRegistry {
     custom.push(tool)
   }
 
-  async function all(): Promise<Tool.Info[]> {
+  async function all(agent?: Agent.Info): Promise<Tool.Info[]> {
     const custom = await state().then((x) => x.custom)
     const config = await Config.get()
     const question = ["app", "cli", "desktop"].includes(Flag.OPENCODE_CLIENT) || Flag.OPENCODE_ENABLE_QUESTION_TOOL
@@ -120,6 +121,7 @@ export namespace ToolRegistry {
       ...(Flag.OPENCODE_EXPERIMENTAL_LSP_TOOL ? [LspTool] : []),
       ...(config.experimental?.batch_tool === true ? [BatchTool] : []),
       ...(Flag.OPENCODE_EXPERIMENTAL_PLAN_MODE && Flag.OPENCODE_CLIENT === "cli" ? [PlanExitTool] : []),
+      ...(agent?.name === "n8n" ? N8nTools : []),
       ...custom,
     ]
   }
@@ -135,7 +137,7 @@ export namespace ToolRegistry {
     },
     agent?: Agent.Info,
   ) {
-    const tools = await all()
+    const tools = await all(agent)
     const result = await Promise.all(
       tools
         .filter((t) => {
