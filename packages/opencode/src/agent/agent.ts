@@ -11,6 +11,7 @@ import { ProviderTransform } from "../provider/transform"
 import PROMPT_GENERATE from "./generate.txt"
 import PROMPT_COMPACTION from "./prompt/compaction.txt"
 import PROMPT_EXPLORE from "./prompt/explore.txt"
+import PROMPT_N8N from "./prompt/n8n.txt"
 import PROMPT_SUMMARY from "./prompt/summary.txt"
 import PROMPT_TITLE from "./prompt/title.txt"
 import { PermissionNext } from "@/permission/next"
@@ -86,6 +87,26 @@ export namespace Agent {
           }),
           user,
         ),
+        mode: "primary",
+        native: true,
+      },
+      n8n: {
+        name: "n8n",
+        description:
+          "N8n mode. Extends the build agent with n8n workflow automation tools for managing workflows, executions, and more.",
+        options: {},
+        permission: PermissionNext.merge(
+          defaults,
+          PermissionNext.fromConfig({
+            question: "allow",
+            plan_enter: "allow",
+            n8n_write: {
+              "*": "ask",
+            },
+          }),
+          user,
+        ),
+        prompt: PROMPT_N8N,
         mode: "primary",
         native: true,
       },
