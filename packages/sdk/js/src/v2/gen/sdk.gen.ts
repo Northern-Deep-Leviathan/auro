@@ -46,6 +46,9 @@ import type {
   GlobalDisposeResponses,
   GlobalEventResponses,
   GlobalHealthResponses,
+  GlobalN8nStatusResponses,
+  GlobalN8nTestErrors,
+  GlobalN8nTestResponses,
   InstanceDisposeResponses,
   LspStatusResponses,
   McpAddErrors,
@@ -265,6 +268,55 @@ export class Config extends HeyApiClient {
   }
 }
 
+export class N8N extends HeyApiClient {
+  /**
+   * Get n8n configuration status
+   *
+   * Check whether n8n is configured and return the instance URL if available.
+   */
+  public status<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).get<GlobalN8nStatusResponses, unknown, ThrowOnError>({
+      url: "/global/n8n/status",
+      ...options,
+    })
+  }
+
+  /**
+   * Test n8n connection
+   *
+   * Test connectivity to an n8n instance using the provided URL and API key.
+   */
+  public test<ThrowOnError extends boolean = false>(
+    parameters?: {
+      url?: string
+      apiKey?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "body", key: "url" },
+            { in: "body", key: "apiKey" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<GlobalN8nTestResponses, GlobalN8nTestErrors, ThrowOnError>({
+      url: "/global/n8n/test",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
 export class Global extends HeyApiClient {
   /**
    * Get health
@@ -305,6 +357,11 @@ export class Global extends HeyApiClient {
   private _config?: Config
   get config(): Config {
     return (this._config ??= new Config({ client: this.client }))
+  }
+
+  private _n8N?: N8N
+  get n8N(): N8N {
+    return (this._n8N ??= new N8N({ client: this.client }))
   }
 }
 
