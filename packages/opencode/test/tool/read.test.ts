@@ -502,3 +502,58 @@ describe("tool.read binary detection", () => {
     })
   })
 })
+
+describe("tool.read spreadsheet redirect", () => {
+  test("returns redirect message for .xlsx files instead of binary error", async () => {
+    await using tmp = await tmpdir({
+      init: async (dir) => {
+        const XLSX = await import("xlsx")
+        const ws = XLSX.utils.aoa_to_sheet([["A"], [1]])
+        const wb = XLSX.utils.book_new()
+        XLSX.utils.book_append_sheet(wb, ws, "Sheet1")
+        XLSX.writeFile(wb, path.join(dir, "data.xlsx"))
+      },
+    })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const read = await ReadTool.init()
+        const result = await read.execute({ filePath: path.join(tmp.path, "data.xlsx") }, ctx)
+        expect(result.output).toContain("excel_read")
+        expect(result.output).toContain("spreadsheet")
+      },
+    })
+  })
+
+  test("returns redirect message for .xls files", async () => {
+    await using tmp = await tmpdir({
+      init: async (dir) => {
+        await Bun.write(path.join(dir, "legacy.xls"), "fake xls content")
+      },
+    })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const read = await ReadTool.init()
+        const result = await read.execute({ filePath: path.join(tmp.path, "legacy.xls") }, ctx)
+        expect(result.output).toContain("excel_read")
+      },
+    })
+  })
+
+  test("returns redirect message for .ods files", async () => {
+    await using tmp = await tmpdir({
+      init: async (dir) => {
+        await Bun.write(path.join(dir, "calc.ods"), "fake ods content")
+      },
+    })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const read = await ReadTool.init()
+        const result = await read.execute({ filePath: path.join(tmp.path, "calc.ods") }, ctx)
+        expect(result.output).toContain("excel_read")
+      },
+    })
+  })
+})

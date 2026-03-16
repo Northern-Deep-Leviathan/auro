@@ -373,6 +373,13 @@ pub fn spawn_command(
         .resolve("", BaseDirectory::AppLocalData)
         .expect("Failed to resolve app local data dir");
 
+    // Resolve bundled built-in skills directory (may not exist in dev mode)
+    let builtin_skills_dir = app
+        .path()
+        .resolve("resources/skills", BaseDirectory::Resource)
+        .ok()
+        .filter(|p| p.exists());
+
     let mut envs = vec![
         (
             "OPENCODE_EXPERIMENTAL_ICON_DISCOVERY".to_string(),
@@ -388,6 +395,16 @@ pub fn spawn_command(
             state_dir.to_string_lossy().to_string(),
         ),
     ];
+
+    // Pass built-in skills path to sidecar if bundled resources exist.
+    // Not available in WSL mode — WSL users use the Linux CLI directly.
+    if let Some(ref skills_path) = builtin_skills_dir {
+        envs.push((
+            "OPENCODE_BUILTIN_SKILLS_PATH".to_string(),
+            skills_path.to_string_lossy().to_string(),
+        ));
+    }
+
     envs.extend(
         extra_env
             .iter()

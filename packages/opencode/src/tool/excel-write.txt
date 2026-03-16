@@ -1,0 +1,18 @@
+Write a spreadsheet file to the local filesystem.
+
+Supported output formats: .xlsx (default), .xls, .csv, .ods.
+
+Usage:
+- The filePath parameter should be an absolute path. If no extension or unsupported extension, defaults to .xlsx.
+- Provide one or more sheets, each with headers, rows, and optional column widths.
+- Cell type conventions:
+  - Strings: written as text cells
+  - Strings starting with "=": written as formula cells (e.g., "=SUM(A1:A10)")
+  - Strings matching YYYY-MM-DD: written as Excel date cells. Prefix with single quote to force string (e.g., "'2025-01-15")
+  - Numbers: written as number cells
+  - Booleans: written as boolean cells
+  - null: produces an empty cell
+- This tool creates new files or fully overwrites existing files. It does not support in-place cell editing.
+- If overwriting an existing file, you MUST read it first using the excel_read tool.
+- Formulas are stored but not evaluated — they will be calculated when the file is opened in Excel.
+- No styling (fonts, colors, borders) is applied — output is data-only.

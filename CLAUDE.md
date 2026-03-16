@@ -385,3 +385,5 @@ Detailed documentation lives in `../docs/`:
 | `CONFIGURATION_FLOW.md` | Config loading, provider resolution, TUI data pipeline |
 | `BUILD_DESKTOP_WINDOWS.md` | Building the Windows desktop app |
 | `THIRD_PARTY_LIBRARIES.md` | All external library documentation |
+| `DESIGN_CHINA_PROVIDER_ALLOWLIST.md` | China provider allowlist build-time filtering design |
+| `DESIGN_BUILTIN_SKILLS_DESKTOP.md` | Built-in skills shipping in Tauri desktop app |

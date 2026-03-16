@@ -11,6 +11,7 @@ import { Instance } from "../project/instance"
 import { assertExternalDirectory } from "./external-directory"
 import { InstructionPrompt } from "../session/instruction"
 import { Filesystem } from "../util/filesystem"
+import { ExcelUtil } from "./excel-util"
 
 const DEFAULT_READ_LIMIT = 2000
 const MAX_LINE_LENGTH = 2000
@@ -110,6 +111,20 @@ export const ReadTool = Tool.define("read", {
         metadata: {
           preview: sliced.slice(0, 20).join("\n"),
           truncated,
+          loaded: [] as string[],
+        },
+      }
+    }
+
+    // Redirect spreadsheet files to excel_read tool
+    const fileExt = path.extname(filepath).toLowerCase()
+    if (ExcelUtil.REDIRECT_EXTENSIONS.has(fileExt)) {
+      return {
+        title,
+        output: "This is a spreadsheet file. Use the excel_read tool to read it.",
+        metadata: {
+          preview: "Spreadsheet file — use excel_read tool",
+          truncated: false,
           loaded: [] as string[],
         },
       }
@@ -248,12 +263,9 @@ async function isBinaryFile(filepath: string, fileSize: number): Promise<boolean
     case ".7z":
     case ".doc":
     case ".docx":
-    case ".xls":
-    case ".xlsx":
     case ".ppt":
     case ".pptx":
     case ".odt":
-    case ".ods":
     case ".odp":
     case ".bin":
     case ".dat":

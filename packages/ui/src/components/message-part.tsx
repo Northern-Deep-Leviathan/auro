@@ -1927,3 +1927,53 @@ ToolRegistry.register({
     return <BasicTool icon="brain" status={props.status} trigger={trigger()} hideDetails />
   },
 })
+
+ToolRegistry.register({
+  name: "excel_read",
+  render(props) {
+    const i18n = useI18n()
+    return (
+      <BasicTool
+        {...props}
+        icon="glasses"
+        trigger={{
+          title: i18n.t("ui.tool.read"),
+          subtitle: (props.input.filePath as string | undefined) ?? "",
+        }}
+      >
+        <Show when={props.output}>
+          {(output) => (
+            <div data-component="tool-output" data-scrollable>
+              <Markdown text={output()} />
+            </div>
+          )}
+        </Show>
+      </BasicTool>
+    )
+  },
+})
+
+ToolRegistry.register({
+  name: "excel_write",
+  render(props) {
+    const i18n = useI18n()
+    return (
+      <BasicTool
+        {...props}
+        icon="code-lines"
+        trigger={{
+          title: i18n.t("ui.tool.write"),
+          subtitle: (props.input.filePath as string | undefined) ?? "",
+        }}
+      >
+        <Show when={props.output}>
+          {(output) => (
+            <div data-component="tool-output" data-scrollable>
+              <Markdown text={output()} />
+            </div>
+          )}
+        </Show>
+      </BasicTool>
+    )
+  },
+})

@@ -101,6 +101,25 @@ export namespace Skill {
         })
     }
 
+    // Scan built-in skills bundled with the desktop app (lowest priority).
+    // These are loaded first so that any user-defined skill with the same name
+    // from external dirs, .opencode/skill/, config paths, or URLs will override them.
+    const builtinSkillsPath = process.env.OPENCODE_BUILTIN_SKILLS_PATH
+    if (builtinSkillsPath) {
+      if (await Filesystem.isDir(builtinSkillsPath)) {
+        const matches = await Glob.scan(SKILL_PATTERN, {
+          cwd: builtinSkillsPath,
+          absolute: true,
+          include: "file",
+          symlink: true,
+        })
+        for (const match of matches) {
+          await addSkill(match)
+        }
+        log.info("loaded built-in skills", { path: builtinSkillsPath, count: matches.length })
+      }
+    }
+
     // Scan external skill directories (.claude/skills/, .agents/skills/, etc.)
     // Load global (home) first, then project-level (so project-level overwrites)
     if (!Flag.OPENCODE_DISABLE_EXTERNAL_SKILLS) {
