@@ -1452,6 +1452,15 @@ export type Config = {
   tools?: {
     [key: string]: boolean
   }
+  /**
+   * n8n workflow automation configuration
+   */
+  n8n?: {
+    /**
+     * n8n instance URL
+     */
+    url: string
+  }
   enterprise?: {
     /**
      * Enterprise URL
@@ -1991,6 +2000,55 @@ export type GlobalDisposeResponses = {
 }
 
 export type GlobalDisposeResponse = GlobalDisposeResponses[keyof GlobalDisposeResponses]
+
+export type GlobalN8nStatusData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/global/n8n/status"
+}
+
+export type GlobalN8nStatusResponses = {
+  /**
+   * N8n configuration status
+   */
+  200: {
+    configured: boolean
+    url?: string
+  }
+}
+
+export type GlobalN8nStatusResponse = GlobalN8nStatusResponses[keyof GlobalN8nStatusResponses]
+
+export type GlobalN8nTestData = {
+  body?: {
+    url: string
+    apiKey: string
+  }
+  path?: never
+  query?: never
+  url: "/global/n8n/test"
+}
+
+export type GlobalN8nTestErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type GlobalN8nTestError = GlobalN8nTestErrors[keyof GlobalN8nTestErrors]
+
+export type GlobalN8nTestResponses = {
+  /**
+   * Connection test succeeded
+   */
+  200: {
+    ok: true
+  }
+}
+
+export type GlobalN8nTestResponse = GlobalN8nTestResponses[keyof GlobalN8nTestResponses]
 
 export type AuthRemoveData = {
   body?: never

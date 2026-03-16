@@ -9,6 +9,8 @@ import { Installation } from "@/installation"
 import { Log } from "../../util/log"
 import { lazy } from "../../util/lazy"
 import { Config } from "../../config/config"
+import { N8n } from "../../n8n"
+import { N8nClient } from "../../n8n/client"
 import { errors } from "../error"
 
 const log = Log.create({ service: "server" })
@@ -180,6 +182,73 @@ export const GlobalRoutes = lazy(() =>
           },
         })
         return c.json(true)
+      },
+    )
+    .get(
+      "/n8n/status",
+      describeRoute({
+        summary: "Get n8n configuration status",
+        description: "Check whether n8n is configured and return the instance URL if available.",
+        operationId: "global.n8n.status",
+        responses: {
+          200: {
+            description: "N8n configuration status",
+            content: {
+              "application/json": {
+                schema: resolver(
+                  z.object({
+                    configured: z.boolean(),
+                    url: z.string().optional(),
+                  }),
+                ),
+              },
+            },
+          },
+        },
+      }),
+      async (c) => {
+        try {
+          const config = await N8n.getConfig()
+          return c.json({ configured: true, url: config.url })
+        } catch {
+          return c.json({ configured: false })
+        }
+      },
+    )
+    .post(
+      "/n8n/test",
+      describeRoute({
+        summary: "Test n8n connection",
+        description: "Test connectivity to an n8n instance using the provided URL and API key.",
+        operationId: "global.n8n.test",
+        responses: {
+          200: {
+            description: "Connection test succeeded",
+            content: {
+              "application/json": {
+                schema: resolver(z.object({ ok: z.literal(true) })),
+              },
+            },
+          },
+          ...errors(400),
+        },
+      }),
+      validator(
+        "json",
+        z.object({
+          url: z.string(),
+          apiKey: z.string(),
+        }),
+      ),
+      async (c) => {
+        const { url, apiKey } = c.req.valid("json")
+        try {
+          await N8nClient.listWorkflows({ url: url.replace(/\/$/, ""), apiKey }, { limit: 1 })
+          return c.json({ ok: true as const })
+        } catch (e) {
+          const message = e instanceof Error ? e.message : "Unknown error"
+          return c.json({ message }, 400)
+        }
       },
     ),
 )
