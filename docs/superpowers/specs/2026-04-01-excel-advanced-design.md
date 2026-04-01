@@ -477,7 +477,7 @@ Classifies a single sheet's layout as one of four types.
 ```markdown
 ---
 name: excel-layout-classifier
-description: Classify an Excel sheet's layout type as tabular, form, mixed, or sparse.
+description: Classify an Excel sheet's layout type as tabular, form, mixed, or sparse. Use when the user wants to identify/classify/categorize the layout of a sheet.
 ---
 
 # Excel Layout Classifier
@@ -500,7 +500,7 @@ The caller provides:
 ### TABULAR
 - One row has most columns filled (the header row)
 - Subsequent rows have consistent fill patterns (data rows)
-- Few or no merged cells (< 3 merges)
+- Few or no merged cells (< 5 merges)
 - Column values in each row follow the same type pattern
 
 ### FORM
@@ -538,7 +538,7 @@ Orchestrates how to read Excel content based on the caller's intent. Supports th
 ```markdown
 ---
 name: excel-read-strategy
-description: Orchestrate Excel reads with progressive disclosure — full, paginated, or sparse mode.
+description: Orchestrate Excel reads with progressive disclosure — full, paginated, or sparse mode. Use when the user wants to read contents of a sheet for an Excel file.
 ---
 
 # Excel Read Strategy
@@ -618,7 +618,7 @@ Guides efficient Excel file creation.
 ```markdown
 ---
 name: excel-write-strategy
-description: Orchestrate Excel writes efficiently — direct write for small data, code generation for large data.
+description: Orchestrate Excel writes efficiently — direct write for small data, code generation for large data. Use when the user wants to write data to an Excel file.
 ---
 
 # Excel Write Strategy
@@ -673,7 +673,7 @@ The first user-facing skill. Orchestrates layout classification, appropriate rea
 ```markdown
 ---
 name: excel-analysis
-description: Analyze spreadsheet files — classify layout, read content with the appropriate strategy, and present findings.
+description: Analyze spreadsheet files — classify layout, read content with the appropriate strategy, and present findings. Use when the user wants to analyze, understand, or extract information from an Excel file.
 ---
 
 # Excel Analysis
