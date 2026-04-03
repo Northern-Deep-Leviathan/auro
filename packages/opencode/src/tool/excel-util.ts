@@ -319,6 +319,23 @@ export namespace ExcelUtil {
     columns?: number[]
   }
 
+  export function letterToColIndex(letter: string): number {
+    let result = 0
+    const upper = letter.toUpperCase()
+    for (let i = 0; i < upper.length; i++) {
+      result = result * 26 + (upper.charCodeAt(i) - 64)
+    }
+    return result - 1 // 0-indexed
+  }
+
+  export function colLetterRange(startCol: number, endCol: number): string {
+    const letters: string[] = []
+    for (let c = startCol; c <= endCol; c++) {
+      letters.push(colLetter(c))
+    }
+    return letters.join(", ")
+  }
+
   export function colLetter(c: number): string {
     let s = ""
     let n = c

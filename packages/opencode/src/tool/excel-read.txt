@@ -1,16 +1,16 @@
-Read a spreadsheet file and return its contents as structured text.
+Read a spreadsheet file and return its contents as a spatial grid.
 
 Supported formats: .xlsx, .xls, .xlsb, .xlsm, .csv, .ods, .numbers, and 20+ other formats.
 
 Usage:
 - The filePath parameter should be an absolute path to the spreadsheet file.
-- By default, returns a schema summary (column names, types, sample values) plus data rows formatted as a markdown table.
-- The default number of data rows adapts to the current model's context window. Use the limit parameter to override.
-- Use limit=0 to get only the schema summary without any data rows (useful for understanding structure first).
-- Use offset to paginate through large files. Offset is 1-indexed and relative to data rows (header rows are always included).
-- Use the columns parameter to select specific columns by name or 0-based index, reducing token usage for wide tables.
-- Use format to choose output format: "markdown" (default), "csv", or "json".
-- If the sheet parameter is omitted, reads all sheets in the workbook.
+- The sheet parameter is required. Use excel_sheets first to discover available sheet names.
+- Output is a spatial grid showing column letters (A, B, C...) and row indices (R0, R1, R2...).
+- Empty cells are shown as a middle dot (·). Merged cells use [== content (range) ==] notation.
+- The default number of rows adapts to the current model's context window. Use the limit parameter to override.
+- Use limit=0 to get only the dimensions without any grid data (useful for understanding structure first).
+- Use offset to paginate through large files. Offset is 0-indexed and relative to raw sheet rows.
+- Use the columns parameter to select specific columns by letter (e.g. "A", "C") or 0-based index, reducing token usage for wide tables.
 - Formulas are displayed as their formula string (e.g., =SUM(A1:A10)), not computed values.
 - For large datasets (500+ rows), consider writing a TypeScript script using the xlsx package and executing it with the bash tool instead of reading all rows into context.
 - Call this tool in parallel when you need to read multiple spreadsheet files.
