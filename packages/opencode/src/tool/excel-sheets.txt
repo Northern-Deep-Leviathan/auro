@@ -1,0 +1,10 @@
+Discover all sheets in a spreadsheet file and return a manifest with dimensions and merge counts.
+
+Supported formats: .xlsx, .xls, .xlsb, .xlsm, .csv, .ods, .numbers, and 20+ other formats.
+
+Usage:
+- Call this tool first to discover what sheets exist before reading specific sheet content with excel_read.
+- Returns sheet names, row counts, column counts, and merge counts for each sheet.
+- This tool does NOT read cell content — it only returns structural metadata.
+- Use the sheet names from this manifest as the required 'sheet' parameter for excel_read.
+- Lightweight operation — suitable for files of any size up to 100MB.

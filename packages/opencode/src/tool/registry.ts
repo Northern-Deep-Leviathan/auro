@@ -10,6 +10,7 @@ import { TaskTool } from "./task"
 import { TodoWriteTool, TodoReadTool } from "./todo"
 import { WebFetchTool } from "./webfetch"
 import { WriteTool } from "./write"
+import { ExcelSheetsTool } from "./excel-sheets"
 import { ExcelReadTool } from "./excel-read"
 import { ExcelWriteTool } from "./excel-write"
 import { InvalidTool } from "./invalid"
@@ -112,6 +113,7 @@ export namespace ToolRegistry {
       GrepTool,
       EditTool,
       WriteTool,
+      ExcelSheetsTool,
       ExcelReadTool,
       ExcelWriteTool,
       TaskTool,

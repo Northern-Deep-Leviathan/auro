@@ -394,14 +394,17 @@ describe("ExcelWriteTool round-trip", () => {
         )
 
         // Read back
-        const result = await readTool.execute({ filePath: path.join(tmp.path, "roundtrip.xlsx") }, ctx)
+        const result = await readTool.execute(
+          { filePath: path.join(tmp.path, "roundtrip.xlsx"), sheet: "Data" },
+          ctx,
+        )
 
         expect(result.output).toContain("Alice")
         expect(result.output).toContain("95")
         expect(result.output).toContain("Bob")
         expect(result.output).toContain("87")
-        expect(result.metadata.sheets[0].rows).toBe(3)
-        expect(result.metadata.sheets[0].columns).toBe(3)
+        expect(result.metadata.rows).toBe(4) // 1 header + 3 data rows (total rows in sheet)
+        expect(result.metadata.cols).toBe(3)
       },
     })
   })
@@ -426,7 +429,7 @@ describe("ExcelWriteTool overwrite protection", () => {
 
         // Read the original so FileTime is satisfied
         const readTool = await ExcelReadTool.init()
-        await readTool.execute({ filePath: originalPath }, ctx)
+        await readTool.execute({ filePath: originalPath, sheet: "S" }, ctx)
 
         // Write again to the same path — should redirect
         const result = await tool.execute(

@@ -79,7 +79,7 @@ export const ExcelWriteTool = Tool.define("excel_write", {
       if (oldExt === ".xlsm") {
         warning =
           "Note: Extension '.xlsm' was changed to '.xlsx'. " +
-          "VBA macros cannot be preserved by SheetJS CE. Data and formulas are retained."
+          "VBA macros cannot be preserved by the tool. Data and formulas are retained."
       } else {
         warning =
           `Note: Unsupported extension '${oldExt}' was changed to '.xlsx'. ` + "Supported: .xlsx, .xls, .csv, .ods"

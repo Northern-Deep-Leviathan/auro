@@ -14,23 +14,19 @@ export const ExcelReadTool = Tool.define("excel_read", {
   description: DESCRIPTION,
   parameters: z.object({
     filePath: z.string().describe("Absolute path to the spreadsheet file"),
-    sheet: z.string().optional().describe("Sheet name to read. If omitted, reads all sheets"),
+    sheet: z.string().describe("Sheet name to read. Use excel_sheets to discover available sheets"),
     offset: z.coerce
       .number()
       .optional()
-      .describe("1-indexed data row to start from (default: 1). Header rows are always included regardless of offset"),
+      .describe("0-indexed row to start from (relative to raw sheet row 0). Default: 0"),
     limit: z.coerce
       .number()
       .optional()
-      .describe("Max data rows to return. Default is model-aware. Use 0 for schema-only mode"),
+      .describe("Max rows to return. Default is model-aware. Use 0 for dimensions-only mode"),
     columns: z
       .array(z.union([z.string(), z.number()]))
       .optional()
-      .describe("Column names or 0-based indices to include. If omitted, includes all columns"),
-    format: z
-      .enum(["markdown", "csv", "json"])
-      .optional()
-      .describe('Output format for data rows (default: "markdown")'),
+      .describe("Column letters (e.g. 'A', 'C') or 0-based indices to include. If omitted, includes all columns"),
   }),
   async execute(params, ctx) {
     let filepath = params.filePath
@@ -87,197 +83,171 @@ export const ExcelReadTool = Tool.define("excel_read", {
       })
     } catch (e) {
       if (e instanceof Error && e.message.includes("password")) {
-        throw new Error("Error: This file is password-protected. SheetJS cannot open encrypted workbooks.")
+        throw new Error("Error: This file is password-protected. The tool cannot open encrypted workbooks.")
       }
       throw new Error(
         `Error: Failed to parse spreadsheet: ${e instanceof Error ? e.message : String(e)}. The file may be corrupted.`,
       )
     }
 
-    if (params.sheet && !wb.SheetNames.includes(params.sheet)) {
+    if (!wb.SheetNames.includes(params.sheet)) {
       throw new Error(`Error: Sheet '${params.sheet}' not found. Available sheets: ${wb.SheetNames.join(", ")}`)
     }
 
-    const sheetsToRead = params.sheet ? [params.sheet] : wb.SheetNames
-    const format = params.format ?? "markdown"
+    const ws = wb.Sheets[params.sheet]
+    if (!ws) {
+      throw new Error(`Error: Sheet '${params.sheet}' not found. Available sheets: ${wb.SheetNames.join(", ")}`)
+    }
+
+    const ref = ws["!ref"]
+    if (!ref) {
+      const output = [
+        `<excel_read path="${filepath}" sheet="${params.sheet}">`,
+        `<dimensions rows="0" cols="0" merges="0" />`,
+        `</excel_read>`,
+      ].join("\n")
+
+      FileTime.read(ctx.sessionID, filepath)
+
+      return {
+        title,
+        output,
+        metadata: {
+          truncated: false,
+          rows: 0,
+          cols: 0,
+          merges: 0,
+          hasMore: false,
+          outputRows: 0,
+        },
+      }
+    }
+
+    const range = XLSX.utils.decode_range(ref)
+    const totalRows = range.e.r - range.s.r + 1
+    const totalCols = range.e.c - range.s.c + 1
+    const mergeCount = (ws["!merges"] || []).length
 
     const model = ctx.extra?.model as { limit?: { context?: number } } | undefined
 
-    const schemaSummary = ExcelUtil.buildSchemaSummary(wb, sheetsToRead)
-
-    const sheetOutputs: string[] = []
-    const sheetMeta: Array<{
-      name: string
-      rows: number
-      columns: number
-      headerRows: number
-    }> = []
-    let totalRows = 0
-    let anyTruncated = false
-
-    for (const sheetName of sheetsToRead) {
-      const ws = wb.Sheets[sheetName]
-      if (!ws) continue
-
-      const info = ExcelUtil.analyzeSheet(ws, sheetName)
-      const ref = ws["!ref"]
-      if (!ref) {
-        sheetMeta.push({ name: sheetName, rows: 0, columns: 0, headerRows: 0 })
-        continue
-      }
-
-      const range = XLSX.utils.decode_range(ref)
-
-      let columnIndices: number[] | undefined
-      if (params.columns) {
-        columnIndices = params.columns.map((col) => {
-          if (typeof col === "number") {
-            if (col < 0 || col >= info.totalCols) {
-              throw new Error(`Error: Column index ${col} is out of range. Valid range: 0-${info.totalCols - 1}`)
-            }
-            return col
+    // Resolve column indices
+    let columnIndices: number[] | undefined
+    if (params.columns) {
+      columnIndices = params.columns.map((col) => {
+        if (typeof col === "number") {
+          const absCol = range.s.c + col
+          if (absCol < range.s.c || absCol > range.e.c) {
+            throw new Error(`Error: Column index ${col} is out of range. Valid range: 0-${totalCols - 1}`)
           }
-          const idx = info.headerNames.indexOf(col)
-          if (idx === -1) {
-            throw new Error(`Error: Column '${col}' not found. Available columns: ${info.headerNames.join(", ")}`)
-          }
-          return idx
-        })
-      }
-
-      const effectiveHeaders = columnIndices ? columnIndices.map((i) => info.headerNames[i]) : info.headerNames
-
-      const defaultLimit = ExcelUtil.defaultRowLimit(effectiveHeaders.length, model)
-      const limit = params.limit !== undefined ? params.limit : defaultLimit
-      const offset = params.offset ?? 1
-
-      if (limit === 0) {
-        sheetMeta.push({
-          name: sheetName,
-          rows: info.totalDataRows,
-          columns: info.totalCols,
-          headerRows: info.dataStartRow,
-        })
-        totalRows += info.totalDataRows
-        continue
-      }
-
-      const startRow = info.dataStartRow + (offset - 1)
-      if (offset > info.totalDataRows && info.totalDataRows > 0) {
-        sheetOutputs.push(
-          `<sheet name="${sheetName}">\n` +
-            `Warning: Offset ${offset} exceeds total data rows (${info.totalDataRows}). No data rows to show.\n` +
-            `</sheet>`,
-        )
-        sheetMeta.push({
-          name: sheetName,
-          rows: info.totalDataRows,
-          columns: info.totalCols,
-          headerRows: info.dataStartRow,
-        })
-        totalRows += info.totalDataRows
-        continue
-      }
-
-      const endRow = Math.min(startRow + limit - 1, range.e.r)
-      const dataRows: string[][] = []
-
-      for (let r = startRow; r <= endRow; r++) {
-        const row: string[] = []
-        const cols = columnIndices ?? Array.from({ length: info.totalCols }, (_, i) => i)
-        for (const ci of cols) {
-          const c = range.s.c + ci
-          const addr = XLSX.utils.encode_cell({ r, c })
-          const cell = ws[addr]
-          if (!cell) {
-            row.push("")
-          } else {
-            row.push(ExcelUtil.formatCellValue(cell.v, cell.t, cell.f))
-          }
+          return absCol
         }
-        dataRows.push(row)
-      }
-
-      const rowsShown = dataRows.length
-      const rowStart = offset
-      const rowEnd = offset + rowsShown - 1
-      const truncated = rowEnd < info.totalDataRows
-
-      if (truncated) anyTruncated = true
-
-      let formatted: string
-      switch (format) {
-        case "csv":
-          formatted = ExcelUtil.formatAsCsv(effectiveHeaders, dataRows)
-          break
-        case "json":
-          formatted = ExcelUtil.formatAsJson(effectiveHeaders, dataRows)
-          break
-        default:
-          formatted = ExcelUtil.formatAsMarkdown(effectiveHeaders, dataRows)
-      }
-
-      let sheetOutput =
-        `<sheet name="${sheetName}">\n` +
-        `<data format="${format}" rows="${rowStart}-${rowEnd}" total="${info.totalDataRows}">\n` +
-        formatted +
-        "\n</data>"
-
-      if (truncated) {
-        sheetOutput += `\n(Showing data rows ${rowStart}-${rowEnd} of ${info.totalDataRows}. Use offset=${rowEnd + 1} to continue reading.)`
-      }
-      if (info.totalDataRows >= 500) {
-        sheetOutput += `\n(This sheet has ${info.totalDataRows} rows. For large-scale analysis (aggregation, filtering, statistics), consider writing a TypeScript script using the xlsx package and executing it with BashTool.)`
-      }
-      if (info.totalCols >= 30) {
-        sheetOutput += `\n(This sheet has ${info.totalCols} columns. Consider using the 'columns' parameter to select only relevant columns.)`
-      }
-
-      sheetOutput += "\n</sheet>"
-      sheetOutputs.push(sheetOutput)
-
-      sheetMeta.push({
-        name: sheetName,
-        rows: info.totalDataRows,
-        columns: info.totalCols,
-        headerRows: info.dataStartRow,
+        const idx = ExcelUtil.letterToColIndex(col)
+        if (idx < range.s.c || idx > range.e.c) {
+          throw new Error(
+            `Error: Column '${col}' is out of range. Valid columns: ${ExcelUtil.colLetterRange(range.s.c, range.e.c)}`,
+          )
+        }
+        return idx
       })
-      totalRows += info.totalDataRows
     }
 
-    const output = [
-      "<excel>",
-      `<path>${filepath}</path>`,
-      "",
-      `<summary>\n${schemaSummary}\n</summary>`,
-      "",
-      ...sheetOutputs,
-      "</excel>",
-    ].join("\n")
+    const effectiveCols = columnIndices ? columnIndices.length : totalCols
+    const defaultLimit = ExcelUtil.defaultRowLimit(effectiveCols, model)
+    const limit = params.limit !== undefined ? params.limit : defaultLimit
+    const offset = params.offset ?? 0
 
-    const firstSheet = sheetsToRead[0]
-    let preview = ""
-    if (firstSheet) {
-      const ws = wb.Sheets[firstSheet]
-      if (ws) {
-        const info = ExcelUtil.analyzeSheet(ws, firstSheet)
-        const ref = ws["!ref"]
-        if (ref) {
-          const range = XLSX.utils.decode_range(ref)
-          const previewRows: string[][] = []
-          for (let r = info.dataStartRow; r <= Math.min(info.dataStartRow + 9, range.e.r); r++) {
-            const row: string[] = []
-            for (let c = range.s.c; c <= range.e.c; c++) {
-              const addr = XLSX.utils.encode_cell({ r, c })
-              const cell = ws[addr]
-              row.push(cell ? ExcelUtil.formatCellValue(cell.v, cell.t, cell.f) : "")
-            }
-            previewRows.push(row)
-          }
-          preview = ExcelUtil.formatAsMarkdown(info.headerNames, previewRows)
-        }
+    const startRow = range.s.r + offset
+
+    // Dimensions-only mode
+    if (limit === 0) {
+      const output = [
+        `<excel_read path="${filepath}" sheet="${params.sheet}">`,
+        `<dimensions rows="${totalRows}" cols="${totalCols}" merges="${mergeCount}" />`,
+        `</excel_read>`,
+      ].join("\n")
+
+      FileTime.read(ctx.sessionID, filepath)
+
+      return {
+        title,
+        output,
+        metadata: {
+          truncated: false,
+          rows: totalRows,
+          cols: totalCols,
+          merges: mergeCount,
+          hasMore: false,
+          outputRows: 0,
+        },
       }
     }
+
+    // Offset beyond available rows
+    if (startRow > range.e.r) {
+      const output = [
+        `<excel_read path="${filepath}" sheet="${params.sheet}">`,
+        `<dimensions rows="${totalRows}" cols="${totalCols}" merges="${mergeCount}" />`,
+        `Warning: offset ${offset} exceeds total rows (${totalRows}). No rows to show.`,
+        `</excel_read>`,
+      ].join("\n")
+
+      FileTime.read(ctx.sessionID, filepath)
+
+      return {
+        title,
+        output,
+        metadata: {
+          truncated: false,
+          rows: totalRows,
+          cols: totalCols,
+          merges: mergeCount,
+          hasMore: false,
+          outputRows: 0,
+        },
+      }
+    }
+
+    const endRow = Math.min(startRow + limit - 1, range.e.r)
+    const outputRows = endRow - startRow + 1
+    const hasMore = endRow < range.e.r
+    const truncated = hasMore
+
+    const grid = ExcelUtil.renderSpatialGrid(ws, {
+      startRow,
+      endRow,
+      columns: columnIndices,
+    })
+
+    const parts: string[] = [
+      `<excel_read path="${filepath}" sheet="${params.sheet}">`,
+      `<dimensions rows="${totalRows}" cols="${totalCols}" merges="${mergeCount}" />`,
+      `<grid>`,
+      grid,
+      `</grid>`,
+    ]
+
+    const nextOffset = offset + outputRows
+    parts.push(`<pagination offset="${offset}" limit="${limit}" hasMore="${hasMore}" nextOffset="${nextOffset}" />`)
+
+    if (truncated) {
+      parts.push(
+        `(Showing rows ${offset}-${offset + outputRows - 1} of ${totalRows}. Use offset=${nextOffset} to continue reading.)`,
+      )
+    }
+    if (totalRows >= 500) {
+      parts.push(
+        `(This sheet has ${totalRows} rows. For large-scale analysis, consider writing a TypeScript script using the xlsx package and executing it with BashTool.)`,
+      )
+    }
+    if (totalCols >= 30) {
+      parts.push(
+        `(This sheet has ${totalCols} columns. Consider using the 'columns' parameter to select only relevant columns.)`,
+      )
+    }
+
+    parts.push(`</excel_read>`)
+
+    const output = parts.join("\n")
 
     FileTime.read(ctx.sessionID, filepath)
 
@@ -285,10 +255,12 @@ export const ExcelReadTool = Tool.define("excel_read", {
       title,
       output,
       metadata: {
-        preview,
-        truncated: anyTruncated,
-        sheets: sheetMeta,
-        totalRows,
+        truncated,
+        rows: totalRows,
+        cols: totalCols,
+        merges: mergeCount,
+        hasMore,
+        outputRows,
       },
     }
   },

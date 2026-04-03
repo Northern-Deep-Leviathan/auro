@@ -281,6 +281,102 @@ describe("ExcelUtil.REDIRECT_EXTENSIONS", () => {
   })
 })
 
+describe("ExcelUtil.renderSpatialGrid", () => {
+  test("renders simple cells with column headers and row prefixes", () => {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["Name", "Age", "City"],
+      ["Alice", 30, "NYC"],
+      ["Bob", 25, "LA"],
+    ])
+    const result = ExcelUtil.renderSpatialGrid(ws, { startRow: 0, endRow: 2 })
+    expect(result).toContain("A")
+    expect(result).toContain("B")
+    expect(result).toContain("C")
+    expect(result).toContain("R0:")
+    expect(result).toContain("R1:")
+    expect(result).toContain("R2:")
+    expect(result).toContain("Name")
+    expect(result).toContain("Alice")
+    expect(result).toContain("30")
+    expect(result).toContain("NYC")
+  })
+
+  test("renders empty cells as middle dot", () => {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["A", null, "C"],
+      [1, null, 3],
+    ])
+    const result = ExcelUtil.renderSpatialGrid(ws, { startRow: 0, endRow: 1 })
+    expect(result).toContain("\u00B7")
+  })
+
+  test("renders merged cells with [== content (range) ==] syntax", () => {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["Title Here", null, null],
+      ["A", "B", "C"],
+    ])
+    ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } }]
+    const result = ExcelUtil.renderSpatialGrid(ws, { startRow: 0, endRow: 1 })
+    expect(result).toContain("[== Title Here (A1:C1) ==]")
+  })
+
+  test("suppresses cells covered by a merge", () => {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["Merged", "covered", "covered", "Standalone"],
+    ])
+    ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } }]
+    const result = ExcelUtil.renderSpatialGrid(ws, { startRow: 0, endRow: 0 })
+    expect(result).toContain("[== Merged (A1:C1) ==]")
+    expect(result).toContain("Standalone")
+    expect(result).not.toContain("covered")
+  })
+
+  test("respects column filter", () => {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["Name", "Age", "City"],
+      ["Alice", 30, "NYC"],
+    ])
+    const result = ExcelUtil.renderSpatialGrid(ws, {
+      startRow: 0,
+      endRow: 1,
+      columns: [0, 2],
+    })
+    expect(result).toContain("A")
+    expect(result).toContain("C")
+    expect(result).toContain("Name")
+    expect(result).toContain("City")
+    expect(result).not.toContain("Age")
+    expect(result).not.toMatch(/\bB\b/)
+  })
+
+  test("truncates long cell values at 40 characters", () => {
+    const longValue = "A".repeat(50)
+    const ws = XLSX.utils.aoa_to_sheet([[longValue]])
+    const result = ExcelUtil.renderSpatialGrid(ws, { startRow: 0, endRow: 0 })
+    expect(result).toContain("A".repeat(37) + "...")
+    expect(result).not.toContain("A".repeat(50))
+  })
+
+  test("renders formulas as =FORMULA", () => {
+    const ws = XLSX.utils.aoa_to_sheet([["Total"], [0]])
+    ws["A2"] = { v: 0, t: "n", f: "SUM(B1:B10)" }
+    const result = ExcelUtil.renderSpatialGrid(ws, { startRow: 0, endRow: 1 })
+    expect(result).toContain("=SUM(B1:B10)")
+  })
+
+  test("renders entirely empty rows as blank lines", () => {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["Header"],
+      [null],
+      ["Data"],
+    ])
+    const result = ExcelUtil.renderSpatialGrid(ws, { startRow: 0, endRow: 2 })
+    expect(result).toContain("R0:")
+    expect(result).toContain("R2:")
+    expect(result).toContain("Data")
+  })
+})
+
 describe("ExcelUtil.buildSchemaSummary", () => {
   test("builds summary for simple sheet", () => {
     const ws = XLSX.utils.aoa_to_sheet([

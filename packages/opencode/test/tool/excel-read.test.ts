@@ -16,17 +16,17 @@ const ctx = {
   ask: async () => {},
 }
 
-function createTestXlsx(dir: string, filename: string, data: unknown[][]): string {
+function createTestXlsx(dir: string, filename: string, data: unknown[][], sheetName = "Sheet1"): string {
   const ws = XLSX.utils.aoa_to_sheet(data)
   const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, "Sheet1")
+  XLSX.utils.book_append_sheet(wb, ws, sheetName)
   const filepath = path.join(dir, filename)
   XLSX.writeFile(wb, filepath)
   return filepath
 }
 
-describe("ExcelReadTool basic read", () => {
-  test("reads a simple xlsx file and returns schema + data", async () => {
+describe("spatial grid output", () => {
+  test("reads a simple xlsx file and returns spatial grid", async () => {
     await using tmp = await tmpdir({
       init: async (dir) => {
         createTestXlsx(dir, "test.xlsx", [
@@ -40,26 +40,98 @@ describe("ExcelReadTool basic read", () => {
       directory: tmp.path,
       fn: async () => {
         const tool = await ExcelReadTool.init()
-        const result = await tool.execute({ filePath: path.join(tmp.path, "test.xlsx") }, ctx)
-        expect(result.output).toContain("<excel>")
-        expect(result.output).toContain("</excel>")
-        expect(result.output).toContain("<summary>")
+        const result = await tool.execute({ filePath: path.join(tmp.path, "test.xlsx"), sheet: "Sheet1" }, ctx)
+        expect(result.output).toContain("<excel_read")
+        expect(result.output).toContain("</excel_read>")
+        expect(result.output).toContain("<grid>")
+        expect(result.output).toContain("</grid>")
+        expect(result.output).toContain("<dimensions")
         expect(result.output).toContain("Name")
-        expect(result.output).toContain("Age")
-        expect(result.output).toContain("City")
         expect(result.output).toContain("Alice")
         expect(result.output).toContain("Bob")
-        expect(result.metadata.sheets).toHaveLength(1)
-        expect(result.metadata.sheets[0].name).toBe("Sheet1")
-        expect(result.metadata.sheets[0].rows).toBe(2)
-        expect(result.metadata.sheets[0].columns).toBe(3)
+        expect(result.metadata.rows).toBe(3)
+        expect(result.metadata.cols).toBe(3)
+      },
+    })
+  })
+
+  test("renders merged cells in spatial grid", async () => {
+    await using tmp = await tmpdir({
+      init: async (dir) => {
+        const ws = XLSX.utils.aoa_to_sheet([
+          ["Title Here", null, null],
+          ["Name", "Age", "City"],
+          ["Alice", 30, "NYC"],
+        ])
+        ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } }]
+        const wb = XLSX.utils.book_new()
+        XLSX.utils.book_append_sheet(wb, ws, "Sheet1")
+        XLSX.writeFile(wb, path.join(dir, "merged.xlsx"))
+      },
+    })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const tool = await ExcelReadTool.init()
+        const result = await tool.execute({ filePath: path.join(tmp.path, "merged.xlsx"), sheet: "Sheet1" }, ctx)
+        expect(result.output).toContain("[== Title Here (A1:C1) ==]")
+        expect(result.metadata.merges).toBe(1)
+      },
+    })
+  })
+
+  test("renders empty cells as middle dot", async () => {
+    await using tmp = await tmpdir({
+      init: async (dir) => {
+        createTestXlsx(dir, "empty.xlsx", [
+          ["A", null, "C"],
+          [1, null, 3],
+        ])
+      },
+    })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const tool = await ExcelReadTool.init()
+        const result = await tool.execute({ filePath: path.join(tmp.path, "empty.xlsx"), sheet: "Sheet1" }, ctx)
+        expect(result.output).toContain("\u00B7")
       },
     })
   })
 })
 
-describe("ExcelReadTool pagination", () => {
-  test("respects custom limit", async () => {
+describe("dimensions-only mode", () => {
+  test("limit=0 returns dimensions only (no grid)", async () => {
+    await using tmp = await tmpdir({
+      init: async (dir) => {
+        createTestXlsx(dir, "dims.xlsx", [
+          ["Name", "Age"],
+          ["Alice", 30],
+          ["Bob", 25],
+        ])
+      },
+    })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const tool = await ExcelReadTool.init()
+        const result = await tool.execute(
+          { filePath: path.join(tmp.path, "dims.xlsx"), sheet: "Sheet1", limit: 0 },
+          ctx,
+        )
+        expect(result.output).toContain("<dimensions")
+        expect(result.output).not.toContain("<grid>")
+        expect(result.metadata.rows).toBe(3)
+        expect(result.metadata.cols).toBe(2)
+        expect(result.metadata.outputRows).toBe(0)
+        expect(result.metadata.hasMore).toBe(false)
+      },
+    })
+  })
+})
+
+describe("pagination", () => {
+  test("respects offset and limit", async () => {
     await using tmp = await tmpdir({
       init: async (dir) => {
         const data: unknown[][] = [["ID", "Value"]]
@@ -71,43 +143,26 @@ describe("ExcelReadTool pagination", () => {
       directory: tmp.path,
       fn: async () => {
         const tool = await ExcelReadTool.init()
-        const result = await tool.execute({ filePath: path.join(tmp.path, "pagination.xlsx"), limit: 5 }, ctx)
-        expect(result.output).toContain('rows="1-5"')
-        expect(result.output).toContain('total="50"')
-        expect(result.output).toContain("Use offset=6 to continue reading")
-        expect(result.metadata.truncated).toBe(true)
+        const result = await tool.execute(
+          { filePath: path.join(tmp.path, "pagination.xlsx"), sheet: "Sheet1", offset: 5, limit: 5 },
+          ctx,
+        )
+        expect(result.output).toContain("<pagination")
+        expect(result.output).toContain('offset="5"')
+        expect(result.output).toContain('limit="5"')
+        expect(result.output).toContain('hasMore="true"')
+        expect(result.metadata.hasMore).toBe(true)
+        expect(result.metadata.outputRows).toBe(5)
       },
     })
   })
 
-  test("respects offset parameter", async () => {
+  test("hasMore is false when all rows are shown", async () => {
     await using tmp = await tmpdir({
       init: async (dir) => {
-        const data: unknown[][] = [["ID", "Value"]]
-        for (let i = 1; i <= 20; i++) data.push([i, `val${i}`])
-        createTestXlsx(dir, "offset.xlsx", data)
-      },
-    })
-    await Instance.provide({
-      directory: tmp.path,
-      fn: async () => {
-        const tool = await ExcelReadTool.init()
-        const result = await tool.execute({ filePath: path.join(tmp.path, "offset.xlsx"), offset: 10, limit: 5 }, ctx)
-        expect(result.output).toContain('rows="10-14"')
-        expect(result.output).toContain("val10")
-        expect(result.output).not.toContain("val9")
-        expect(result.output).toContain("val14")
-      },
-    })
-  })
-
-  test("schema-only mode with limit=0", async () => {
-    await using tmp = await tmpdir({
-      init: async (dir) => {
-        createTestXlsx(dir, "schema.xlsx", [
+        createTestXlsx(dir, "small.xlsx", [
           ["Name", "Age"],
           ["Alice", 30],
-          ["Bob", 25],
         ])
       },
     })
@@ -115,18 +170,46 @@ describe("ExcelReadTool pagination", () => {
       directory: tmp.path,
       fn: async () => {
         const tool = await ExcelReadTool.init()
-        const result = await tool.execute({ filePath: path.join(tmp.path, "schema.xlsx"), limit: 0 }, ctx)
-        expect(result.output).toContain("<summary>")
-        expect(result.output).toContain("Name")
-        expect(result.output).toContain("Age")
-        expect(result.output).not.toContain("<data")
+        const result = await tool.execute(
+          { filePath: path.join(tmp.path, "small.xlsx"), sheet: "Sheet1" },
+          ctx,
+        )
+        expect(result.output).toContain('hasMore="false"')
+        expect(result.metadata.hasMore).toBe(false)
+        expect(result.metadata.outputRows).toBe(2)
+      },
+    })
+  })
+
+  test("offset exceeding rows shows warning", async () => {
+    await using tmp = await tmpdir({
+      init: async (dir) => {
+        createTestXlsx(dir, "offset-exceed.xlsx", [
+          ["Name"],
+          ["Alice"],
+          ["Bob"],
+        ])
+      },
+    })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const tool = await ExcelReadTool.init()
+        const result = await tool.execute(
+          { filePath: path.join(tmp.path, "offset-exceed.xlsx"), sheet: "Sheet1", offset: 100 },
+          ctx,
+        )
+        expect(result.output).toContain("Warning")
+        expect(result.output).toContain("exceeds total rows")
+        expect(result.metadata.outputRows).toBe(0)
+        expect(result.metadata.hasMore).toBe(false)
       },
     })
   })
 })
 
-describe("ExcelReadTool column filtering", () => {
-  test("filters columns by name", async () => {
+describe("column filtering", () => {
+  test("filters columns by letter", async () => {
     await using tmp = await tmpdir({
       init: async (dir) => {
         createTestXlsx(dir, "cols.xlsx", [
@@ -141,7 +224,7 @@ describe("ExcelReadTool column filtering", () => {
       fn: async () => {
         const tool = await ExcelReadTool.init()
         const result = await tool.execute(
-          { filePath: path.join(tmp.path, "cols.xlsx"), columns: ["Name", "City"] },
+          { filePath: path.join(tmp.path, "cols.xlsx"), sheet: "Sheet1", columns: ["A", "C"] },
           ctx,
         )
         expect(result.output).toContain("Name")
@@ -165,7 +248,10 @@ describe("ExcelReadTool column filtering", () => {
       directory: tmp.path,
       fn: async () => {
         const tool = await ExcelReadTool.init()
-        const result = await tool.execute({ filePath: path.join(tmp.path, "cols-idx.xlsx"), columns: [0, 2] }, ctx)
+        const result = await tool.execute(
+          { filePath: path.join(tmp.path, "cols-idx.xlsx"), sheet: "Sheet1", columns: [0, 2] },
+          ctx,
+        )
         expect(result.output).toContain("Name")
         expect(result.output).toContain("City")
         expect(result.output).toContain("Alice")
@@ -174,7 +260,7 @@ describe("ExcelReadTool column filtering", () => {
     })
   })
 
-  test("throws for invalid column name", async () => {
+  test("throws for invalid column letter", async () => {
     await using tmp = await tmpdir({
       init: async (dir) => {
         createTestXlsx(dir, "cols-err.xlsx", [
@@ -188,75 +274,28 @@ describe("ExcelReadTool column filtering", () => {
       fn: async () => {
         const tool = await ExcelReadTool.init()
         await expect(
-          tool.execute({ filePath: path.join(tmp.path, "cols-err.xlsx"), columns: ["NonExistent"] }, ctx),
-        ).rejects.toThrow("Column 'NonExistent' not found")
+          tool.execute({ filePath: path.join(tmp.path, "cols-err.xlsx"), sheet: "Sheet1", columns: ["Z"] }, ctx),
+        ).rejects.toThrow("out of range")
       },
     })
   })
 })
 
-describe("ExcelReadTool output formats", () => {
-  test("outputs CSV format", async () => {
-    await using tmp = await tmpdir({
-      init: async (dir) => {
-        createTestXlsx(dir, "csv.xlsx", [
-          ["Name", "Age"],
-          ["Alice", 30],
-        ])
-      },
-    })
-    await Instance.provide({
-      directory: tmp.path,
-      fn: async () => {
-        const tool = await ExcelReadTool.init()
-        const result = await tool.execute({ filePath: path.join(tmp.path, "csv.xlsx"), format: "csv" }, ctx)
-        expect(result.output).toContain('format="csv"')
-        expect(result.output).toContain("Name,Age")
-      },
-    })
-  })
-
-  test("outputs JSON format", async () => {
-    await using tmp = await tmpdir({
-      init: async (dir) => {
-        createTestXlsx(dir, "json.xlsx", [
-          ["Name", "Age"],
-          ["Alice", 30],
-        ])
-      },
-    })
-    await Instance.provide({
-      directory: tmp.path,
-      fn: async () => {
-        const tool = await ExcelReadTool.init()
-        const result = await tool.execute({ filePath: path.join(tmp.path, "json.xlsx"), format: "json" }, ctx)
-        expect(result.output).toContain('format="json"')
-        const jsonMatch = result.output.match(/<data[^>]*>\n([\s\S]*?)\n<\/data>/)
-        expect(jsonMatch).toBeTruthy()
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[1])
-          expect(parsed[0].Name).toBe("Alice")
-        }
-      },
-    })
-  })
-})
-
-describe("ExcelReadTool error handling", () => {
+describe("error handling", () => {
   test("throws for file not found", async () => {
     await using tmp = await tmpdir()
     await Instance.provide({
       directory: tmp.path,
       fn: async () => {
         const tool = await ExcelReadTool.init()
-        await expect(tool.execute({ filePath: path.join(tmp.path, "nonexistent.xlsx") }, ctx)).rejects.toThrow(
-          "File not found",
-        )
+        await expect(
+          tool.execute({ filePath: path.join(tmp.path, "nonexistent.xlsx"), sheet: "Sheet1" }, ctx),
+        ).rejects.toThrow("File not found")
       },
     })
   })
 
-  test("throws for invalid sheet name", async () => {
+  test("throws for sheet not found", async () => {
     await using tmp = await tmpdir({
       init: async (dir) => {
         createTestXlsx(dir, "sheets.xlsx", [["A"], [1]])
@@ -276,7 +315,6 @@ describe("ExcelReadTool error handling", () => {
   test("throws for corrupted file", async () => {
     await using tmp = await tmpdir({
       init: async (dir) => {
-        // Write binary garbage with PK header (ZIP magic bytes) but invalid content
         const corrupt = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0xff, 0xfe, 0x00, 0x00, 0xde, 0xad])
         await Bun.write(path.join(dir, "corrupt.xlsx"), corrupt)
       },
@@ -285,9 +323,9 @@ describe("ExcelReadTool error handling", () => {
       directory: tmp.path,
       fn: async () => {
         const tool = await ExcelReadTool.init()
-        await expect(tool.execute({ filePath: path.join(tmp.path, "corrupt.xlsx") }, ctx)).rejects.toThrow(
-          "Failed to parse spreadsheet",
-        )
+        await expect(
+          tool.execute({ filePath: path.join(tmp.path, "corrupt.xlsx"), sheet: "Sheet1" }, ctx),
+        ).rejects.toThrow("Failed to parse spreadsheet")
       },
     })
   })
@@ -302,15 +340,15 @@ describe("ExcelReadTool error handling", () => {
       directory: tmp.path,
       fn: async () => {
         const tool = await ExcelReadTool.init()
-        await expect(tool.execute({ filePath: path.join(tmp.path, "doc.pdf") }, ctx)).rejects.toThrow(
-          "Unsupported file format '.pdf'",
-        )
+        await expect(
+          tool.execute({ filePath: path.join(tmp.path, "doc.pdf"), sheet: "Sheet1" }, ctx),
+        ).rejects.toThrow("Unsupported file format '.pdf'")
       },
     })
   })
 })
 
-describe("ExcelReadTool permissions", () => {
+describe("permissions", () => {
   test("asks for read permission", async () => {
     await using tmp = await tmpdir({
       init: async (dir) => {
@@ -328,7 +366,7 @@ describe("ExcelReadTool permissions", () => {
             requests.push(req)
           },
         }
-        await tool.execute({ filePath: path.join(tmp.path, "perm.xlsx") }, testCtx)
+        await tool.execute({ filePath: path.join(tmp.path, "perm.xlsx"), sheet: "Sheet1" }, testCtx)
         const readReq = requests.find((r) => r.permission === "read")
         expect(readReq).toBeDefined()
         expect(readReq!.patterns[0]).toContain("perm.xlsx")
@@ -337,54 +375,7 @@ describe("ExcelReadTool permissions", () => {
   })
 })
 
-describe("ExcelReadTool specific sheet", () => {
-  test("reads only the specified sheet", async () => {
-    await using tmp = await tmpdir({
-      init: async (dir) => {
-        const ws1 = XLSX.utils.aoa_to_sheet([["A"], [1]])
-        const ws2 = XLSX.utils.aoa_to_sheet([["B"], [2]])
-        const wb = XLSX.utils.book_new()
-        XLSX.utils.book_append_sheet(wb, ws1, "First")
-        XLSX.utils.book_append_sheet(wb, ws2, "Second")
-        XLSX.writeFile(wb, path.join(dir, "multi.xlsx"))
-      },
-    })
-    await Instance.provide({
-      directory: tmp.path,
-      fn: async () => {
-        const tool = await ExcelReadTool.init()
-        const result = await tool.execute({ filePath: path.join(tmp.path, "multi.xlsx"), sheet: "Second" }, ctx)
-        expect(result.output).toContain('<sheet name="Second">')
-        expect(result.output).not.toContain('<sheet name="First">')
-      },
-    })
-  })
-
-  test("reads all sheets when sheet param is omitted", async () => {
-    await using tmp = await tmpdir({
-      init: async (dir) => {
-        const ws1 = XLSX.utils.aoa_to_sheet([["A"], [1]])
-        const ws2 = XLSX.utils.aoa_to_sheet([["B"], [2]])
-        const wb = XLSX.utils.book_new()
-        XLSX.utils.book_append_sheet(wb, ws1, "First")
-        XLSX.utils.book_append_sheet(wb, ws2, "Second")
-        XLSX.writeFile(wb, path.join(dir, "all-sheets.xlsx"))
-      },
-    })
-    await Instance.provide({
-      directory: tmp.path,
-      fn: async () => {
-        const tool = await ExcelReadTool.init()
-        const result = await tool.execute({ filePath: path.join(tmp.path, "all-sheets.xlsx") }, ctx)
-        expect(result.output).toContain('<sheet name="First">')
-        expect(result.output).toContain('<sheet name="Second">')
-        expect(result.metadata.sheets).toHaveLength(2)
-      },
-    })
-  })
-})
-
-describe("ExcelReadTool model-aware limit", () => {
+describe("model-aware limit", () => {
   test("uses model context window for default row limit", async () => {
     await using tmp = await tmpdir({
       init: async (dir) => {
@@ -401,9 +392,13 @@ describe("ExcelReadTool model-aware limit", () => {
           ...ctx,
           extra: { model: { limit: { context: 900 } } },
         }
-        const result = await tool.execute({ filePath: path.join(tmp.path, "large.xlsx") }, ctxSmallModel)
-        // context=900 → budget=135 → tokensPerRow≈6.86 → estimated=19 → clamped to min 20
-        expect(result.output).toContain('rows="1-20"')
+        const result = await tool.execute(
+          { filePath: path.join(tmp.path, "large.xlsx"), sheet: "Sheet1" },
+          ctxSmallModel,
+        )
+        // context=900 -> budget=135 -> tokensPerRow~6.86 -> estimated=19 -> clamped to min 20
+        expect(result.metadata.outputRows).toBe(20)
+        expect(result.metadata.hasMore).toBe(true)
         expect(result.metadata.truncated).toBe(true)
       },
     })

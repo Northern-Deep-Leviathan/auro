@@ -308,4 +308,157 @@ export namespace ExcelUtil {
 
     return parts.join("\n\n")
   }
+
+  const CONTENT_WIDTH_CAP = 40
+  const COLUMN_SEPARATOR = "  "
+  const EMPTY_CELL = "\u00B7"
+
+  export interface SpatialGridOptions {
+    startRow: number
+    endRow: number
+    columns?: number[]
+  }
+
+  export function letterToColIndex(letter: string): number {
+    let result = 0
+    const upper = letter.toUpperCase()
+    for (let i = 0; i < upper.length; i++) {
+      result = result * 26 + (upper.charCodeAt(i) - 64)
+    }
+    return result - 1 // 0-indexed
+  }
+
+  export function colLetterRange(startCol: number, endCol: number): string {
+    const letters: string[] = []
+    for (let c = startCol; c <= endCol; c++) {
+      letters.push(colLetter(c))
+    }
+    return letters.join(", ")
+  }
+
+  export function colLetter(c: number): string {
+    let s = ""
+    let n = c
+    while (n >= 0) {
+      s = String.fromCharCode((n % 26) + 65) + s
+      n = Math.floor(n / 26) - 1
+    }
+    return s
+  }
+
+  function isCoveredByMerge(
+    merges: XLSX.Range[],
+    r: number,
+    c: number,
+  ): { covered: boolean; isOrigin: boolean; merge?: XLSX.Range } {
+    for (const m of merges) {
+      if (r >= m.s.r && r <= m.e.r && c >= m.s.c && c <= m.e.c) {
+        const isOrigin = r === m.s.r && c === m.s.c
+        return { covered: true, isOrigin, merge: m }
+      }
+    }
+    return { covered: false, isOrigin: false }
+  }
+
+  function truncateValue(s: string, cap: number): string {
+    if (s.length <= cap) return s
+    return s.slice(0, cap - 3) + "..."
+  }
+
+  export function renderSpatialGrid(ws: XLSX.WorkSheet, opts: SpatialGridOptions): string {
+    const ref = ws["!ref"]
+    if (!ref) return ""
+
+    const range = XLSX.utils.decode_range(ref)
+    const merges = ws["!merges"] || []
+
+    const colIndices = opts.columns ?? Array.from({ length: range.e.c - range.s.c + 1 }, (_, i) => range.s.c + i)
+
+    const rowData: Array<{ rowIdx: number; cells: Map<number, string>; isEmpty: boolean }> = []
+    const colWidths = new Map<number, number>()
+
+    for (const ci of colIndices) {
+      const letter = colLetter(ci)
+      colWidths.set(ci, letter.length)
+    }
+
+    for (let r = opts.startRow; r <= opts.endRow && r <= range.e.r; r++) {
+      const cells = new Map<number, string>()
+      let isEmpty = true
+
+      for (const ci of colIndices) {
+        const mergeInfo = isCoveredByMerge(merges, r, ci)
+
+        if (mergeInfo.covered && !mergeInfo.isOrigin) {
+          continue
+        }
+
+        if (mergeInfo.isOrigin && mergeInfo.merge) {
+          const m = mergeInfo.merge
+          const addr = XLSX.utils.encode_cell({ r: m.s.r, c: m.s.c })
+          const cell = ws[addr]
+          const value = cell ? formatCellValue(cell.v, cell.t, cell.f) : ""
+          const rangeStr = XLSX.utils.encode_range(m)
+          const display = value ? `[== ${truncateValue(value, CONTENT_WIDTH_CAP)} (${rangeStr}) ==]` : EMPTY_CELL
+          cells.set(ci, display)
+          isEmpty = false
+          const w = display.length
+          colWidths.set(ci, Math.max(colWidths.get(ci) ?? 0, w))
+          continue
+        }
+
+        const addr = XLSX.utils.encode_cell({ r, c: ci })
+        const cell = ws[addr]
+        if (!cell || cell.v === undefined || cell.v === null || cell.v === "") {
+          cells.set(ci, EMPTY_CELL)
+        } else {
+          const raw = formatCellValue(cell.v, cell.t, cell.f)
+          const display = truncateValue(raw, CONTENT_WIDTH_CAP)
+          cells.set(ci, display)
+          isEmpty = false
+          const w = display.length
+          colWidths.set(ci, Math.max(colWidths.get(ci) ?? 0, w))
+        }
+      }
+
+      rowData.push({ rowIdx: r, cells, isEmpty })
+    }
+
+    for (const [ci, w] of colWidths) {
+      colWidths.set(ci, Math.min(w, CONTENT_WIDTH_CAP + 20))
+    }
+
+    const lines: string[] = []
+
+    const prefix = "     "
+    const headerParts: string[] = []
+    for (const ci of colIndices) {
+      const letter = colLetter(ci)
+      const width = colWidths.get(ci) ?? letter.length
+      headerParts.push(letter.padEnd(width))
+    }
+    lines.push(prefix + headerParts.join(COLUMN_SEPARATOR))
+
+    for (const row of rowData) {
+      if (row.isEmpty) {
+        lines.push(`R${row.rowIdx}:`)
+        continue
+      }
+
+      const rowPrefix = `R${row.rowIdx}:`.padEnd(5)
+      const cellParts: string[] = []
+      for (const ci of colIndices) {
+        const width = colWidths.get(ci) ?? 1
+        const display = row.cells.get(ci)
+        if (display === undefined) {
+          cellParts.push(" ".repeat(width))
+        } else {
+          cellParts.push(display.padEnd(width))
+        }
+      }
+      lines.push(rowPrefix + cellParts.join(COLUMN_SEPARATOR))
+    }
+
+    return lines.join("\n")
+  }
 }
