@@ -13,6 +13,6 @@ Usage:
   - Booleans: written as boolean cells
   - null: produces an empty cell
 - This tool creates new files or fully overwrites existing files. It does not support in-place cell editing.
-- If overwriting an existing file, you MUST read it first using the excel_read tool.
+- If overwriting an existing file, you MUST read it first using the excel_sheets and excel_read tools.
 - Formulas are stored but not evaluated — they will be calculated when the file is opened in Excel.
 - No styling (fonts, colors, borders) is applied — output is data-only.
