@@ -230,7 +230,9 @@ export const ExcelReadTool = Tool.define("excel_read", {
     parts.push(`<pagination offset="${offset}" limit="${limit}" hasMore="${hasMore}" nextOffset="${nextOffset}" />`)
 
     if (truncated) {
-      parts.push(`(Showing rows ${offset}-${offset + outputRows - 1} of ${totalRows}. Use offset=${nextOffset} to continue reading.)`)
+      parts.push(
+        `(Showing rows ${offset}-${offset + outputRows - 1} of ${totalRows}. Use offset=${nextOffset} to continue reading.)`,
+      )
     }
     if (totalRows >= 500) {
       parts.push(
@@ -238,7 +240,9 @@ export const ExcelReadTool = Tool.define("excel_read", {
       )
     }
     if (totalCols >= 30) {
-      parts.push(`(This sheet has ${totalCols} columns. Consider using the 'columns' parameter to select only relevant columns.)`)
+      parts.push(
+        `(This sheet has ${totalCols} columns. Consider using the 'columns' parameter to select only relevant columns.)`,
+      )
     }
 
     parts.push(`</excel_read>`)

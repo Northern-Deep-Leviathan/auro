@@ -372,8 +372,7 @@ export namespace ExcelUtil {
     const range = XLSX.utils.decode_range(ref)
     const merges = ws["!merges"] || []
 
-    const colIndices =
-      opts.columns ?? Array.from({ length: range.e.c - range.s.c + 1 }, (_, i) => range.s.c + i)
+    const colIndices = opts.columns ?? Array.from({ length: range.e.c - range.s.c + 1 }, (_, i) => range.s.c + i)
 
     const rowData: Array<{ rowIdx: number; cells: Map<number, string>; isEmpty: boolean }> = []
     const colWidths = new Map<number, number>()
