@@ -68,7 +68,7 @@ export const ExcelSheetsTool = Tool.define("excel_sheets", {
       })
     } catch (e) {
       if (e instanceof Error && e.message.includes("password")) {
-        throw new Error("Error: This file is password-protected. SheetJS cannot open encrypted workbooks.")
+        throw new Error("Error: This file is password-protected. The tool cannot open encrypted workbooks.")
       }
       throw new Error(
         `Error: Failed to parse spreadsheet: ${e instanceof Error ? e.message : String(e)}. The file may be corrupted.`,
