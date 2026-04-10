@@ -19,60 +19,70 @@ The root `CLAUDE.md` mixes monorepo governance (rules, commands, git hooks) with
 
 ### 1. Root `CLAUDE.md` (rewrite)
 
-**Keeps:**
-- 1-line project summary
-- Tech stack table (trimmed to monorepo-wide tools only — no SolidJS, Hono, Kobalte, etc.)
-- Flat subproject map table (all 13 packages, one-line descriptions)
-- Monorepo-wide commands (`bun install`, `bun typecheck`)
-- Build & verification checklist (root-level steps only, points to subproject CLAUDE.md for test commands)
-- Git hooks section (pre-push)
-- Placeholder coding rules section
+Sections in order:
+1. 1-line project summary (header)
+2. NOT rules — `do not run tests from root`, `do not push if typecheck fails`
+3. PREFERRED rules — Prettier formatting, git hooks (pre-push: bun version check + typecheck)
+4. Build & Verification Checklist — `bun typecheck` → format check → subproject tests
+5. Coding rules — placeholder (TODO)
+6. Commands — `bun install`, `bun typecheck`
+7. Subproject Map — flat table, all 13 packages
+8. Tech Stack — monorepo-wide only (Bun, TurboRepo, tsgo, Prettier, bun:test)
 
-**Removes:**
-- Project overview paragraph (replaced by 1-line summary)
-- Full directory tree with nested src/ structure
-- Package relationships section
-- Per-subproject commands (opencode, app, desktop sections)
-- Per-subproject testing details (test location, fixtures, setup)
-- Per-subproject build details
+**Removes from current file:** project overview paragraph, directory tree, package relationships, all per-subproject commands/testing/build details.
 
 ### 2. `packages/opencode/CLAUDE.md` (new)
 
-Contains:
-- Commands: dev, test, build, typecheck, drizzle-kit
-- Testing: bun:test, test/ directory (mirrors src/), preload setup, tmpdir() fixture, 30s timeout
-- Architecture: Hono, Vercel AI SDK, @opentui TUI, MCP SDK, Drizzle ORM, Zod, Remeda
-- Path aliases: @/* and @tui/*
-- Build notes: models snapshot fetch, provider allowlist, dist/ output
-- Placeholder coding rules
+Sections in order:
+1. 1-line package summary (header)
+2. NOT rules — placeholder
+3. PREFERRED rules — 30s test timeout, test/ mirrors src/ structure, tmpdir() fixture for isolation
+4. Build & Verification — tsgo --noEmit → bun test --timeout 30000
+5. Coding rules — placeholder, path aliases (@/*, @tui/*)
+6. Commands — dev, test, build, typecheck, drizzle-kit
+7. Architecture — Hono, Vercel AI SDK, @opentui TUI, MCP SDK, Drizzle ORM, Zod, Remeda
 
 ### 3. `packages/app/CLAUDE.md` (new)
 
-Contains:
-- Commands: dev (port 3000), build, serve, typecheck (tsgo -b)
-- Unit testing: bun:test + HappyDOM preload, colocated tests (src/**/*.test.ts), mock.module()
-- E2E testing: Playwright, e2e/ directory, interactive and report commands
-- Architecture: SolidJS, TailwindCSS v4, Kobalte, ghostty-web, Shiki, marked, Luxon, virtua, i18n
-- Path aliases: @/*
-- Build notes: ./vite export for desktop, composite tsconfig
-- Placeholder coding rules
+Sections in order:
+1. 1-line package summary (header)
+2. NOT rules — placeholder
+3. PREFERRED rules — colocated tests (src/**/*.test.ts), HappyDOM preload, mock.module() for DI
+4. Build & Verification — tsgo -b → bun test → bun run test:e2e
+5. Coding rules — placeholder, path aliases (@/*)
+6. Commands — dev (port 3000), build, serve, typecheck, test:unit, test:e2e variants
+7. Architecture — SolidJS, TailwindCSS v4, Kobalte, ghostty-web, Shiki, Luxon, virtua
 
 ### 4. `packages/desktop/CLAUDE.md` (new)
 
-Contains:
-- Commands: tauri dev, tauri build, typecheck, predev
-- Testing: none (delegates to app)
-- Architecture: Tauri v2, Rust backend, delegates frontend to @opencode-ai/app, sidecar pattern
-- Build notes: predev script, port 1420 strictPort, TAURI_ENV_TARGET_TRIPLE, conf overlays
-- Placeholder coding rules
+Sections in order:
+1. 1-line package summary (header)
+2. NOT rules — placeholder
+3. PREFERRED rules — no dedicated tests (delegates to app), predev must run before tauri dev
+4. Build & Verification — tsgo -b → bun run predev → bun run tauri build
+5. Coding rules — placeholder
+6. Commands — tauri dev, tauri build, typecheck, predev
+7. Architecture — Tauri v2, Rust backend, sidecar pattern, port 1420 strictPort
 
-## Principles
+## Constraints
 
-1. **Root knows nothing about subproject internals** — no framework choices, no per-package commands, no architecture details
-2. **Subproject CLAUDE.md is self-contained** — everything an AI agent needs to work in that package is in its own file
-3. **Flat subproject map** — simple table, not a nested tree. One-line descriptions.
-4. **Tech stack at root = monorepo-wide only** — Bun, TurboRepo, tsgo, Prettier, bun:test. Subproject-specific tech (SolidJS, Hono, Tauri, Kobalte) lives in subproject files.
-5. **Coding rules placeholder** — both root and subproject files include a TODO section for future rule specification
+- **Each CLAUDE.md must be under 800 words.** If a file exceeds this, strip from the bottom of the priority order first.
+- **Root knows nothing about subproject internals** — no framework choices, no per-package commands, no architecture details
+- **Subproject CLAUDE.md is self-contained** — everything an AI agent needs to work in that package is in its own file
+
+## Section Priority Order (highest to lowest)
+
+Every CLAUDE.md follows this ordering. If the file exceeds 800 words, strip sections from the bottom first.
+
+1. **NOT rules** — things the AI must NOT do (hard prohibitions)
+2. **PREFERRED rules** — conventions, style preferences, git hooks/husky
+3. **Build & Verification Checklist** — ordered steps to validate changes
+4. **Coding Rules** — patterns, imports, structure conventions
+5. **Commands** — dev, test, build, typecheck commands
+6. **Subproject Map** (root only) — flat table of packages
+7. **Tech Stack** (root only) / **Architecture** (subprojects) — framework/library reference
+
+Sections 6-7 are the first to be cut if space is tight. The 1-line project summary sits above all sections as a header.
 
 ## Out of Scope
 
