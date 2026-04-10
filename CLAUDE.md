@@ -27,7 +27,18 @@ cd packages/<pkg> && <test command>                      # 3. Tests (see subproj
 
 ## Coding Rules
 
-<!-- TODO: Add monorepo-wide coding rules -->
+### General Principles
+
+- Keep things in one function unless composable or reusable
+- Avoid `try`/`catch` where possible
+- Avoid using the `any` type
+- Use Bun APIs when possible, like `Bun.file()`
+- Rely on type inference when possible; avoid explicit type annotations or interfaces unless necessary for exports or clarity
+- Prefer functional array methods (flatMap, filter, map) over for loops; use type guards on filter to maintain type inference downstream
+
+### Naming
+
+Prefer single word names for variables and functions. Only use multiple words if necessary.
 
 ## Commands
 

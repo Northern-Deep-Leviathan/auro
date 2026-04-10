@@ -3,6 +3,7 @@
 ## NOT
 
 - Do not skip `predev` — it builds the opencode CLI sidecar binary required by Tauri
+- Never call `invoke` manually in this package.
 
 <!-- TODO: Add more desktop-specific prohibitions -->
 
@@ -11,6 +12,7 @@
 - No dedicated tests in this package — desktop delegates UI logic to `packages/app`
 - To verify UI behavior, run tests in app: `cd ../app && bun test`
 - `predev` must complete before `tauri dev` will work
+- Use the generated bindings in `packages/desktop/src/bindings.ts` for core commands/events.
 
 ## Build & Verification
 
