@@ -7,6 +7,7 @@ OpenCode is an AI-powered development tool providing CLI, desktop, and web inter
 - Do not run tests from the repo root — `cd` into the subproject first
 - Do not push with failing typecheck — pre-push hook will block it
 - Do not add ESLint or Biome — this project uses Prettier only
+- DO not add lots of trival and tiny tests in a similar terminology - consider to combine them if possible
 
 ## PREFERRED
 
