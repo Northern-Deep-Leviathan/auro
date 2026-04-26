@@ -363,7 +363,7 @@ export namespace Provider {
         options: {
           headers: {
             "HTTP-Referer": "https://opencode.ai/",
-            "X-Title": "opencode",
+            "X-Title": "auro",
           },
         },
       }
@@ -374,7 +374,7 @@ export namespace Provider {
         options: {
           headers: {
             "http-referer": "https://opencode.ai/",
-            "x-title": "opencode",
+            "x-title": "auro",
           },
         },
       }
@@ -460,7 +460,7 @@ export namespace Provider {
         options: {
           headers: {
             "HTTP-Referer": "https://opencode.ai/",
-            "X-Title": "opencode",
+            "X-Title": "auro",
           },
         },
       }
@@ -573,7 +573,7 @@ export namespace Provider {
         autoload: false,
         options: {
           headers: {
-            "X-Cerebras-3rd-Party-Integration": "opencode",
+            "X-Cerebras-3rd-Party-Integration": "auro",
           },
         },
       }
@@ -584,7 +584,7 @@ export namespace Provider {
         options: {
           headers: {
             "HTTP-Referer": "https://opencode.ai/",
-            "X-Title": "opencode",
+            "X-Title": "auro",
           },
         },
       }
