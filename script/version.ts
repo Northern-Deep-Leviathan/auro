@@ -7,8 +7,8 @@ import { buildNotes, getLatestRelease } from "./changelog"
 const output = [`version=${Script.version}`]
 
 if (!Script.preview) {
-  const previous = await getLatestRelease()
-  const notes = await buildNotes(previous, "HEAD")
+  const previous = await getLatestRelease(undefined, true)
+  const notes = previous ? await buildNotes(previous, "HEAD") : []
   const body = notes.join("\n") || "No notable changes"
   const dir = process.env.RUNNER_TEMP ?? "/tmp"
   const file = `${dir}/auro-release-notes.txt`
