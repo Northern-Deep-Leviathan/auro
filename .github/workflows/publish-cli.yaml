@@ -67,7 +67,7 @@ jobs:
       - name: Build
         id: build
         run: |
-          ./packages/opencode/script/build.ts
+          bun ./packages/opencode/script/build.ts
         env:
           AURO_VERSION: ${{ needs.version.outputs.version }}
           AURO_RELEASE: ${{ needs.version.outputs.release }}
