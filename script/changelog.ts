@@ -11,7 +11,7 @@ type Release = {
   prerelease: boolean
 }
 
-export async function getLatestRelease(skip?: string) {
+export async function getLatestRelease(skip?: string, ignoreNoRelease?: boolean) {
   const data = await fetch("https://api.github.com/repos/Northern-Deep-Leviathan/auro/releases?per_page=100").then((res) => {
     if (!res.ok) throw new Error(res.statusText)
     return res.json()
@@ -25,6 +25,11 @@ export async function getLatestRelease(skip?: string) {
     const tag = release.tag_name.replace(/^v/, "")
     if (target && tag === target) continue
     return tag
+  }
+
+  if (ignoreNoRelease) {
+    console.warn("No releases found")
+    return null
   }
 
   throw new Error("No releases found")
