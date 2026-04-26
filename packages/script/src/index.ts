@@ -17,36 +17,45 @@ if (!semver.satisfies(process.versions.bun, expectedBunVersionRange)) {
 }
 
 const env = {
-  OPENCODE_CHANNEL: process.env["OPENCODE_CHANNEL"],
-  OPENCODE_BUMP: process.env["OPENCODE_BUMP"],
-  OPENCODE_VERSION: process.env["OPENCODE_VERSION"],
-  OPENCODE_RELEASE: process.env["OPENCODE_RELEASE"],
+  AURO_CHANNEL: process.env["AURO_CHANNEL"],
+  AURO_BUMP: process.env["AURO_BUMP"],
+  AURO_VERSION: process.env["AURO_VERSION"],
+  AURO_RELEASE: process.env["AURO_RELEASE"],
 }
 const CHANNEL = await (async () => {
-  if (env.OPENCODE_CHANNEL) return env.OPENCODE_CHANNEL
-  if (env.OPENCODE_BUMP) return "latest"
-  if (env.OPENCODE_VERSION && !env.OPENCODE_VERSION.startsWith("0.0.0-")) return "latest"
+  if (env.AURO_CHANNEL) return env.AURO_CHANNEL
+  if (env.AURO_BUMP) return "latest"
+  if (env.AURO_VERSION && !env.AURO_VERSION.startsWith("0.0.0-")) return "latest"
   return await $`git branch --show-current`.text().then((x) => x.trim())
 })()
 const IS_PREVIEW = CHANNEL !== "latest"
 
+// Resolve version: AURO_VERSION env > preview timestamp > latest GitHub release + bump
 const VERSION = await (async () => {
-  if (env.OPENCODE_VERSION) return env.OPENCODE_VERSION
+  if (env.AURO_VERSION) return env.AURO_VERSION
   if (IS_PREVIEW) return `0.0.0-${CHANNEL}-${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "")}`
-  const version = await fetch("https://registry.npmjs.org/opencode-ai/latest")
-    .then((res) => {
-      if (!res.ok) throw new Error(res.statusText)
-      return res.json()
-    })
-    .then((data: any) => data.version)
+  // Fetch latest release tag from GitHub; fall back to git remote for repo slug
+  const repo =
+    process.env["GH_REPO"] ||
+    (await $`git remote get-url origin`
+      .text()
+      .then((x) => x.trim().replace(/\.git$/, "").replace(/^.*github\.com[:/]/, "")))
+  // 404 means no releases yet — default to 0.0.0; rethrow other errors
+  const result = await $`gh api repos/${repo}/releases/latest --jq .tag_name`.quiet().nothrow()
+  if (result.exitCode !== 0) {
+    const stderr = result.stderr.toString()
+    if (!stderr.includes("Not Found") && !stderr.includes("404")) throw new Error(`Failed to fetch latest release: ${stderr}`)
+  }
+  const version = result.exitCode === 0 ? result.stdout.toString().trim().replace(/^v/, "") : "0.0.0"
+  // Bump major/minor/patch based on AURO_BUMP, default to patch
   const [major, minor, patch] = version.split(".").map((x: string) => Number(x) || 0)
-  const t = env.OPENCODE_BUMP?.toLowerCase()
+  const t = env.AURO_BUMP?.toLowerCase()
   if (t === "major") return `${major + 1}.0.0`
   if (t === "minor") return `${major}.${minor + 1}.0`
   return `${major}.${minor}.${patch + 1}`
 })()
 
-const bot = ["actions-user", "opencode", "opencode-agent[bot]"]
+const bot = ["actions-user", "auro", "auro-agent[bot]"]
 const teamPath = path.resolve(import.meta.dir, "../../../.github/TEAM_MEMBERS")
 const team = [
   ...(await Bun.file(teamPath)
@@ -67,7 +76,7 @@ export const Script = {
     return IS_PREVIEW
   },
   get release(): boolean {
-    return !!env.OPENCODE_RELEASE
+    return !!env.AURO_RELEASE
   },
   get team() {
     return team

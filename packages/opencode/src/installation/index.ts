@@ -8,8 +8,8 @@ import { iife } from "@/util/iife"
 import { Flag } from "../flag/flag"
 
 declare global {
-  const OPENCODE_VERSION: string
-  const OPENCODE_CHANNEL: string
+  const AURO_VERSION: string
+  const AURO_CHANNEL: string
 }
 
 export namespace Installation {
@@ -104,7 +104,7 @@ export namespace Installation {
     for (const check of checks) {
       const output = await check.command()
       const installedName =
-        check.name === "brew" || check.name === "choco" || check.name === "scoop" ? "opencode" : "opencode-ai"
+        check.name === "brew" || check.name === "choco" || check.name === "scoop" ? "auro" : "opencode-ai"
       if (output.includes(installedName)) {
         return check.name
       }
@@ -121,11 +121,11 @@ export namespace Installation {
   )
 
   async function getBrewFormula() {
-    const tapFormula = await $`brew list --formula anomalyco/tap/opencode`.throws(false).quiet().text()
-    if (tapFormula.includes("opencode")) return "anomalyco/tap/opencode"
-    const coreFormula = await $`brew list --formula opencode`.throws(false).quiet().text()
-    if (coreFormula.includes("opencode")) return "opencode"
-    return "opencode"
+    const tapFormula = await $`brew list --formula anomalyco/tap/auro`.throws(false).quiet().text()
+    if (tapFormula.includes("auro")) return "anomalyco/tap/auro"
+    const coreFormula = await $`brew list --formula auro`.throws(false).quiet().text()
+    if (coreFormula.includes("auro")) return "auro"
+    return "auro"
   }
 
   export async function upgrade(method: Method, target: string) {
@@ -189,8 +189,8 @@ export namespace Installation {
     await $`${process.execPath} --version`.nothrow().quiet().text()
   }
 
-  export const VERSION = typeof OPENCODE_VERSION === "string" ? OPENCODE_VERSION : "local"
-  export const CHANNEL = typeof OPENCODE_CHANNEL === "string" ? OPENCODE_CHANNEL : "local"
+  export const VERSION = typeof AURO_VERSION === "string" ? AURO_VERSION : "local"
+  export const CHANNEL = typeof AURO_CHANNEL === "string" ? AURO_CHANNEL : "local"
   export const USER_AGENT = `opencode/${CHANNEL}/${VERSION}/${Flag.OPENCODE_CLIENT}`
 
   export async function latest(installMethod?: Method) {
