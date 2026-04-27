@@ -1,5 +1,5 @@
 name: publish
-run-name: "${{ format('release {0}', inputs.bump) }}"
+run-name: "release ${{ inputs.version || inputs.bump || 'patch' }}"
 
 on:
   workflow_dispatch:
@@ -16,8 +16,11 @@ on:
         description: "Override version (optional)"
         required: false
         type: string
+  schedule:
+    # Every Wednesday at 03:17 UTC
+    - cron: "17 3 * * 3"
 
-concurrency: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.version || inputs.bump }}
+concurrency: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.version || inputs.bump || 'patch' }}
 
 permissions:
   id-token: write
@@ -25,9 +28,43 @@ permissions:
   packages: write
 
 jobs:
-  version:
+  changes:
     runs-on: ubuntu-24.04
     if: github.repository == 'Northern-Deep-Leviathan/auro'
+    outputs:
+      has_changes: ${{ steps.check.outputs.has_changes }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - id: check
+        name: Check for new commits since last tag
+        run: |
+          # Manual dispatch always proceeds.
+          if [ "${{ github.event_name }}" != "schedule" ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$last_tag" ]; then
+            echo "No prior tag found; treating as changed."
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          count=$(git rev-list "$last_tag"..HEAD --count)
+          echo "Commits since $last_tag: $count"
+          if [ "$count" -gt 0 ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  version:
+    needs: changes
+    runs-on: ubuntu-24.04
+    if: github.repository == 'Northern-Deep-Leviathan/auro' && needs.changes.outputs.has_changes == 'true'
     steps:
       - uses: actions/checkout@v3
         with:
@@ -36,7 +73,7 @@ jobs:
       - uses: ./.github/actions/setup-bun
 
       - name: Install OpenCode
-        if: inputs.bump || inputs.version
+        if: inputs.bump || inputs.version || github.event_name == 'schedule'
         run: bun i -g opencode-ai
 
       - id: version
@@ -44,7 +81,7 @@ jobs:
           ./script/version.ts
         env:
           GH_TOKEN: ${{ github.token }}
-          AURO_BUMP: ${{ inputs.bump }}
+          AURO_BUMP: ${{ inputs.version && '' || (inputs.bump || 'patch') }}
           AURO_VERSION: ${{ inputs.version }}
           AURO_RELEASE: ${{ needs.version.outputs.release }}
           GH_REPO: ${{ github.repository }}
