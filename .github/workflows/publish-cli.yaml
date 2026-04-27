@@ -112,7 +112,7 @@ jobs:
           name: auro-cli
           path: packages/opencode/dist
 
-      - run: ./script/postbuild-cli
+      - run: ./script/publish-release-cli.ts
         env:
           AURO_VERSION: ${{ needs.version.outputs.version }}
           AURO_RELEASE: ${{ needs.version.outputs.release }}
