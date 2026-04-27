@@ -70,7 +70,7 @@ Add to your Zed configuration (`~/.config/zed/settings.json`):
 {
   "agent_servers": {
     "OpenCode": {
-      "command": "opencode",
+      "command": "auro",
       "args": ["acp"]
     }
   }

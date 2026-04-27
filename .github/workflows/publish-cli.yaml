@@ -1,0 +1,122 @@
+name: publish
+run-name: "${{ format('release {0}', inputs.bump) }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Bump major, minor, or patch"
+        required: false
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+      version:
+        description: "Override version (optional)"
+        required: false
+        type: string
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.version || inputs.bump }}
+
+permissions:
+  id-token: write
+  contents: write
+  packages: write
+
+jobs:
+  version:
+    runs-on: ubuntu-24.04
+    if: github.repository == 'Northern-Deep-Leviathan/auro'
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-bun
+
+      - name: Install OpenCode
+        if: inputs.bump || inputs.version
+        run: bun i -g opencode-ai
+
+      - id: version
+        run: |
+          ./script/version.ts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AURO_BUMP: ${{ inputs.bump }}
+          AURO_VERSION: ${{ inputs.version }}
+          AURO_RELEASE: ${{ needs.version.outputs.release }}
+          GH_REPO: ${{ github.repository }}
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release: ${{ steps.version.outputs.release }}
+      tag: ${{ steps.version.outputs.tag }}
+
+  build-cli:
+    needs: version
+    runs-on: ubuntu-24.04
+    if: github.repository == 'Northern-Deep-Leviathan/auro'
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-tags: true
+
+      - uses: ./.github/actions/setup-bun
+
+      - name: Build
+        id: build
+        run: |
+          bun ./packages/opencode/script/build.ts
+        env:
+          AURO_VERSION: ${{ needs.version.outputs.version }}
+          AURO_RELEASE: ${{ needs.version.outputs.release }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          OPENCODE_PROVIDER_ALLOWLIST: src/provider/china-allowlist.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: auro-cli
+          path: packages/opencode/dist
+
+    outputs:
+      version: ${{ needs.version.outputs.version }}
+
+  publish:
+    needs:
+      - version
+      - build-cli
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: ./.github/actions/setup-bun
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup auro git
+        id: gitconfig
+        uses: ./.github/actions/setup-auro-git
+        with:
+          auro-app-id: ${{ vars.AURO_APP_ID }}
+          auro-app-key: ${{ secrets.AURO_APP_KEY }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: auro-cli
+          path: packages/opencode/dist
+
+      - run: |
+          bun ./script/publish-release-cli.ts
+        env:
+          AURO_VERSION: ${{ needs.version.outputs.version }}
+          AURO_RELEASE: ${{ needs.version.outputs.release }}
+          GITHUB_TOKEN: ${{ steps.gitconfig.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          NPM_CONFIG_PROVENANCE: false

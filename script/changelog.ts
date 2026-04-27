@@ -11,8 +11,8 @@ type Release = {
   prerelease: boolean
 }
 
-export async function getLatestRelease(skip?: string) {
-  const data = await fetch("https://api.github.com/repos/anomalyco/opencode/releases?per_page=100").then((res) => {
+export async function getLatestRelease(skip?: string, ignoreNoRelease?: boolean) {
+  const data = await fetch("https://api.github.com/repos/Northern-Deep-Leviathan/auro/releases?per_page=100").then((res) => {
     if (!res.ok) throw new Error(res.statusText)
     return res.json()
   })
@@ -25,6 +25,11 @@ export async function getLatestRelease(skip?: string) {
     const tag = release.tag_name.replace(/^v/, "")
     if (target && tag === target) continue
     return tag
+  }
+
+  if (ignoreNoRelease) {
+    console.warn("No releases found")
+    return null
   }
 
   throw new Error("No releases found")
@@ -43,7 +48,7 @@ export async function getCommits(from: string, to: string): Promise<Commit[]> {
 
   // Get commit data with GitHub usernames from the API
   const compare =
-    await $`gh api "/repos/anomalyco/opencode/compare/${fromRef}...${toRef}" --jq '.commits[] | {sha: .sha, login: .author.login, message: .commit.message}'`.text()
+    await $`gh api "/repos/Northern-Deep-Leviathan/auro/compare/${fromRef}...${toRef}" --jq '.commits[] | {sha: .sha, login: .author.login, message: .commit.message}'`.text()
 
   const commitData = new Map<string, { login: string | null; message: string }>()
   for (const line of compare.split("\n").filter(Boolean)) {

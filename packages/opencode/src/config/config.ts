@@ -48,7 +48,7 @@ export namespace Config {
       case "darwin":
         return "/Library/Application Support/opencode"
       case "win32":
-        return path.join(process.env.ProgramData || "C:\\ProgramData", "opencode")
+        return path.join(process.env.ProgramData || "C:\\ProgramData", "auro")
       default:
         return "/etc/opencode"
     }
@@ -122,7 +122,7 @@ export namespace Config {
 
     // Project config overrides global and remote config.
     if (!Flag.OPENCODE_DISABLE_PROJECT_CONFIG) {
-      for (const file of await ConfigPaths.projectFiles("opencode", Instance.directory, Instance.worktree)) {
+      for (const file of await ConfigPaths.projectFiles("auro", Instance.directory, Instance.worktree)) {
         result = mergeConfigConcatArrays(result, await loadFile(file))
       }
     }
