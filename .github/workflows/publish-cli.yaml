@@ -112,8 +112,8 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: Setup auro git
-        id: committer
-        uses: ./.github/actions/setup-auro-committer
+        id: gitconfig
+        uses: ./.github/actions/setup-auro-git
         with:
           auro-app-id: ${{ vars.AURO_APP_ID }}
           auro-app-secret: ${{ secrets.AURO_APP_SECRET }}
@@ -146,6 +146,6 @@ jobs:
         env:
           AURO_VERSION: ${{ needs.version.outputs.version }}
           AURO_RELEASE: ${{ needs.version.outputs.release }}
-          GITHUB_TOKEN: ${{ steps.committer.outputs.token }}
+          GITHUB_TOKEN: ${{ steps.gitconfig.outputs.token }}
           GH_REPO: ${{ github.repository }}
           NPM_CONFIG_PROVENANCE: false
