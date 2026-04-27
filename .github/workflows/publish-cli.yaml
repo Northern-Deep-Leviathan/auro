@@ -111,9 +111,9 @@ jobs:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
 
-      - name: Setup git committer
+      - name: Setup auro git
         id: committer
-        uses: ./.github/actions/setup-git-committer
+        uses: ./.github/actions/setup-auro-committer
         with:
           auro-app-id: ${{ vars.AURO_APP_ID }}
           auro-app-secret: ${{ secrets.AURO_APP_SECRET }}
