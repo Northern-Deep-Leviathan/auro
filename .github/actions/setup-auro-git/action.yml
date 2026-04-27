@@ -24,6 +24,7 @@ runs:
         app-id: ${{ inputs.auro-app-id }}
         private-key: ${{ inputs.auro-app-secret }}
         owner: ${{ github.repository_owner }}
+        repositories: "auro, aurowork"
 
     - name: Configure git user
       run: |
