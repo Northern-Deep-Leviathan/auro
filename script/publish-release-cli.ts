@@ -48,16 +48,32 @@ for (const file of pkgjsons) {
 }
 
 if (Script.release) {
-  if (!Script.preview) {
-    await $`git commit -am "release: v${Script.version}"`
-    await $`git tag v${Script.version}`
-    await $`git fetch origin`
-    await $`git cherry-pick HEAD..origin/dev`.nothrow()
-    await $`git push origin HEAD --tags --no-verify --force-with-lease`
-    await new Promise((resolve) => setTimeout(resolve, 5_000))
-  }
+  try {
+    if (!Script.preview) {
+      const status = (await $`git status --porcelain`.text()).trim()
+      if (status) {
+        await $`git commit -am "release: v${Script.version}"`
+      } else {
+        console.log("no file changes, skipping commit")
+      }
+      const existingTag = (await $`git tag -l v${Script.version}`.text()).trim()
+      if (existingTag) {
+        console.log(`tag v${Script.version} already exists, deleting and re-tagging`)
+        await $`git tag -d v${Script.version}`
+      }
+      await $`git tag v${Script.version}`
+      await $`git fetch origin`
+      await $`git cherry-pick HEAD..origin/dev`.nothrow()
+      await $`git push origin HEAD --tags --no-verify --force-with-lease`
+      await new Promise((resolve) => setTimeout(resolve, 5_000))
+    }
 
-  await $`gh release edit v${Script.version} --draft=false --repo ${process.env.GH_REPO}`
+    await $`gh release edit v${Script.version} --draft=false --repo ${process.env.GH_REPO}`
+  } catch (err) {
+    console.error("release failed, deleting draft release:", err)
+    await $`gh release delete v${Script.version} --repo Northern-Deep-Leviathan/auro --cleanup-tag --yes`.nothrow()
+    throw err
+  }
 }
 
 const dir = fileURLToPath(new URL("..", import.meta.url))
