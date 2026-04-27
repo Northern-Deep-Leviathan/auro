@@ -116,7 +116,7 @@ jobs:
         uses: ./.github/actions/setup-auro-git
         with:
           auro-app-id: ${{ vars.AURO_APP_ID }}
-          auro-app-secret: ${{ secrets.AURO_APP_SECRET }}
+          auro-app-key: ${{ secrets.AURO_APP_KEY }}
 
       - uses: actions/download-artifact@v4
         with:
