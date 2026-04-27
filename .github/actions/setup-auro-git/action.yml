@@ -4,7 +4,7 @@ inputs:
   auro-app-id:
     description: "Auro Repo - GitHub App ID"
     required: true
-  auro-app-secret:
+  auro-app-key:
     description: "Aruo Repo - GitHub App private key"
     required: true
 outputs:
@@ -22,8 +22,9 @@ runs:
       uses: actions/create-github-app-token@v2
       with:
         app-id: ${{ inputs.auro-app-id }}
-        private-key: ${{ inputs.auro-app-secret }}
+        private-key: ${{ inputs.auro-app-key }}
         owner: ${{ github.repository_owner }}
+        repositories: "auro, aurowork"
 
     - name: Configure git user
       run: |
