@@ -125,8 +125,27 @@ if (Script.release) {
 
     await $`gh release edit v${Script.version} --draft=false --repo ${process.env.GH_REPO}`
   } catch (err) {
-    console.error("release failed, deleting draft release:", err)
+    console.error("release failed, cleaning up:", err)
+
+    // Close the release PR if one was opened and is still open
+    const prState = (
+      await $`gh pr view ${branch} --json state -q .state --repo ${process.env.GH_REPO}`.nothrow().text()
+    ).trim()
+    if (prState === "OPEN") {
+      console.log(`closing release PR for ${branch}`)
+      await $`gh pr close ${branch} --comment "Release failed, auto-closing." --repo ${process.env.GH_REPO}`.nothrow()
+    }
+
+    // Delete the remote release branch if it still exists
+    const remoteRef = (await $`git ls-remote --heads origin ${branch}`.nothrow().text()).trim()
+    if (remoteRef) {
+      console.log(`deleting remote branch ${branch}`)
+      await $`git push origin --delete ${branch} --no-verify`.nothrow()
+    }
+
+    // Delete the draft release and its tag
     await $`gh release delete v${Script.version} --repo ${process.env.GH_REPO} --cleanup-tag --yes`.nothrow()
+
     throw err
   }
 }
