@@ -79,6 +79,7 @@ jobs:
           echo "version=${NEW}" >> $GITHUB_OUTPUT
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "release=${RELEASE_ID}" >> $GITHUB_OUTPUT
+          echo "Test"
         env:
           GH_TOKEN: ${{ github.token }}
     outputs:
