@@ -86,8 +86,24 @@ if (Script.release) {
           }
         }
 
-        // Merge — the release App bypasses approval/queue requirements here
-        await $`gh pr merge ${branch} --squash --delete-branch --repo ${process.env.GH_REPO}`
+        // Enqueue via merge queue — auto-merge once required conditions are met.
+        // (Approval is bypassed by the release App; merge queue handles the actual merge
+        // and deletes the branch automatically, so no --delete-branch flag here.)
+        await $`gh pr merge ${branch} --squash --auto --repo ${process.env.GH_REPO}`
+
+        // Wait for the queue to land the PR on main
+        console.log("waiting for merge queue to land PR...")
+        while (true) {
+          await new Promise((r) => setTimeout(r, 15_000))
+          const state = (
+            await $`gh pr view ${branch} --json state -q .state --repo ${process.env.GH_REPO}`.text()
+          ).trim()
+          if (state === "MERGED") break
+          if (state === "CLOSED") throw new Error("release PR was closed without merging")
+        }
+
+        // Best-effort branch cleanup in case "Automatically delete head branches" is off
+        await $`git push origin --delete ${branch} --no-verify`.nothrow()
 
         await $`git fetch origin main`
       } else {
@@ -109,8 +125,27 @@ if (Script.release) {
 
     await $`gh release edit v${Script.version} --draft=false --repo ${process.env.GH_REPO}`
   } catch (err) {
-    console.error("release failed, deleting draft release:", err)
+    console.error("release failed, cleaning up:", err)
+
+    // Close the release PR if one was opened and is still open
+    const prState = (
+      await $`gh pr view ${branch} --json state -q .state --repo ${process.env.GH_REPO}`.nothrow().text()
+    ).trim()
+    if (prState === "OPEN") {
+      console.log(`closing release PR for ${branch}`)
+      await $`gh pr close ${branch} --comment "Release failed, auto-closing." --repo ${process.env.GH_REPO}`.nothrow()
+    }
+
+    // Delete the remote release branch if it still exists
+    const remoteRef = (await $`git ls-remote --heads origin ${branch}`.nothrow().text()).trim()
+    if (remoteRef) {
+      console.log(`deleting remote branch ${branch}`)
+      await $`git push origin --delete ${branch} --no-verify`.nothrow()
+    }
+
+    // Delete the draft release and its tag
     await $`gh release delete v${Script.version} --repo ${process.env.GH_REPO} --cleanup-tag --yes`.nothrow()
+
     throw err
   }
 }
