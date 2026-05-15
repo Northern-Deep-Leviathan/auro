@@ -74,9 +74,17 @@ if (Script.release) {
           --body "Automated version bump for v${Script.version}" \
           --repo ${process.env.GH_REPO}`
 
-        // Wait for required status checks
+        // Wait for required status checks (tolerate "no checks reported")
         console.log("waiting for PR checks...")
-        await $`gh pr checks ${branch} --watch --repo ${process.env.GH_REPO}`
+        const checks = await $`gh pr checks ${branch} --watch --repo ${process.env.GH_REPO}`.nothrow()
+        if (checks.exitCode !== 0) {
+          const stderr = checks.stderr.toString()
+          if (stderr.includes("no checks reported")) {
+            console.log("no checks configured for this PR, proceeding")
+          } else {
+            throw new Error(`PR checks failed: ${stderr}`)
+          }
+        }
 
         // Merge — the release App bypasses approval/queue requirements here
         await $`gh pr merge ${branch} --squash --delete-branch --repo ${process.env.GH_REPO}`

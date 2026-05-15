@@ -1,0 +1,25 @@
+name: pr-check
+
+on:
+  pull_request:
+  branches: [main]                                                                                                                        
+   
+permissions:                                                                                                                                
+  contents: read                     
+                                         
+jobs:
+  typecheck:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/setup-bun
+      - run: bun install --frozen-lockfile
+      - run: bun typecheck
+
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/setup-bun
+      - run: bun install --frozen-lockfile
+      - run: bunx prettier --check "packages/**/src/**/*.ts"
