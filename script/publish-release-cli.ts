@@ -49,6 +49,23 @@ for (const file of pkgjsons) {
 
 if (Script.release) {
   const branch = `release/v${Script.version}`
+
+  // Convert workflow cancellation (SIGINT/SIGTERM) into a thrown error so the
+  // catch block can clean up the PR, branch, and draft release. Without this,
+  // Bun exits immediately on signal and leaves the release half-published.
+  let cancelled = false
+  const onSignal = (sig: NodeJS.Signals) => {
+    if (cancelled) return
+    cancelled = true
+    console.error(`received ${sig}, cancelling release...`)
+    // Defer the throw so any in-flight `await $\`...\`` rejects cleanly
+    setImmediate(() => {
+      throw new Error(`release cancelled (${sig})`)
+    })
+  }
+  process.on("SIGINT", onSignal)
+  process.on("SIGTERM", onSignal)
+
   try {
     if (!Script.preview) {
       const status = (await $`git status --porcelain`.text()).trim()
@@ -86,21 +103,9 @@ if (Script.release) {
           }
         }
 
-        // Enqueue via merge queue — auto-merge once required conditions are met.
-        // (Approval is bypassed by the release App; merge queue handles the actual merge
-        // and deletes the branch automatically, so no --delete-branch flag here.)
-        await $`gh pr merge ${branch} --squash --auto --repo ${process.env.GH_REPO}`
-
-        // Wait for the queue to land the PR on main
-        console.log("waiting for merge queue to land PR...")
-        while (true) {
-          await new Promise((r) => setTimeout(r, 15_000))
-          const state = (
-            await $`gh pr view ${branch} --json state -q .state --repo ${process.env.GH_REPO}`.text()
-          ).trim()
-          if (state === "MERGED") break
-          if (state === "CLOSED") throw new Error("release PR was closed without merging")
-        }
+        // Merge immediately — the release App bypasses approval/code-owner requirements.
+        // Synchronous: returns once the squash-merge lands on main.
+        await $`gh pr merge ${branch} --squash --repo ${process.env.GH_REPO}`
 
         // Best-effort branch cleanup in case "Automatically delete head branches" is off
         await $`git push origin --delete ${branch} --no-verify`.nothrow()
@@ -147,6 +152,9 @@ if (Script.release) {
     await $`gh release delete v${Script.version} --repo ${process.env.GH_REPO} --cleanup-tag --yes`.nothrow()
 
     throw err
+  } finally {
+    process.off("SIGINT", onSignal)
+    process.off("SIGTERM", onSignal)
   }
 }
 
