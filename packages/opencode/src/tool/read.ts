@@ -121,7 +121,8 @@ export const ReadTool = Tool.define("read", {
     if (ExcelUtil.REDIRECT_EXTENSIONS.has(fileExt)) {
       return {
         title,
-        output: "This is a spreadsheet file. Use the excel_sheets tool to discover sheets, then excel_read to read a specific sheet.",
+        output:
+          "This is a spreadsheet file. Use the excel_sheets tool to discover sheets, then excel_read to read a specific sheet.",
         metadata: {
           preview: "Spreadsheet file — use excel_sheets then excel_read",
           truncated: false,

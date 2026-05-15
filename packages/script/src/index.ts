@@ -37,14 +37,18 @@ const VERSION = await (async () => {
   // Fetch latest release tag from GitHub; fall back to git remote for repo slug
   const repo =
     process.env["GH_REPO"] ||
-    (await $`git remote get-url origin`
-      .text()
-      .then((x) => x.trim().replace(/\.git$/, "").replace(/^.*github\.com[:/]/, "")))
+    (await $`git remote get-url origin`.text().then((x) =>
+      x
+        .trim()
+        .replace(/\.git$/, "")
+        .replace(/^.*github\.com[:/]/, ""),
+    ))
   // 404 means no releases yet — default to 0.0.0; rethrow other errors
   const result = await $`gh api repos/${repo}/releases/latest --jq .tag_name`.quiet().nothrow()
   if (result.exitCode !== 0) {
     const stderr = result.stderr.toString()
-    if (!stderr.includes("Not Found") && !stderr.includes("404")) throw new Error(`Failed to fetch latest release: ${stderr}`)
+    if (!stderr.includes("Not Found") && !stderr.includes("404"))
+      throw new Error(`Failed to fetch latest release: ${stderr}`)
   }
   const version = result.exitCode === 0 ? result.stdout.toString().trim().replace(/^v/, "") : "0.0.0"
   // Bump major/minor/patch based on AURO_BUMP, default to patch
