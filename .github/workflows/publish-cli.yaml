@@ -153,6 +153,6 @@ jobs:
         env:
           AURO_VERSION: ${{ needs.version.outputs.version }}
           AURO_RELEASE: ${{ needs.version.outputs.release }}
-          GITHUB_TOKEN: ${{ steps.gitconfig.outputs.token }}
+          GH_TOKEN: ${{ steps.gitconfig.outputs.token }}
           GH_REPO: ${{ github.repository }}
           NPM_CONFIG_PROVENANCE: false
