@@ -103,9 +103,10 @@ if (Script.release) {
           }
         }
 
-        // Merge immediately — the release App bypasses approval/code-owner requirements.
-        // Synchronous: returns once the squash-merge lands on main.
-        await $`gh pr merge ${branch} --squash --repo ${process.env.GH_REPO}`
+        // Merge immediately using the release App's bypass.
+        // --admin tells `gh` to invoke the bypass path (approval / code-owners / etc.
+        // are bypassed via the ruleset bypass_actors entry for the Auro App).
+        await $`gh pr merge ${branch} --squash --admin --repo ${process.env.GH_REPO}`
 
         // Best-effort branch cleanup in case "Automatically delete head branches" is off
         await $`git push origin --delete ${branch} --no-verify`.nothrow()
