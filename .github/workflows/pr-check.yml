@@ -2,11 +2,15 @@ name: pr-check
 
 on:
   pull_request:
-  branches: [main]                                                                                                                        
-   
-permissions:                                                                                                                                
-  contents: read                     
-                                         
+    branches: [main]
+
+concurrency:
+  group: pr-check-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   typecheck:
     runs-on: ubuntu-24.04
