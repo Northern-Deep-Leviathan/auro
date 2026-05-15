@@ -86,8 +86,24 @@ if (Script.release) {
           }
         }
 
-        // Merge — the release App bypasses approval/queue requirements here
-        await $`gh pr merge ${branch} --squash --delete-branch --repo ${process.env.GH_REPO}`
+        // Enqueue via merge queue — auto-merge once required conditions are met.
+        // (Approval is bypassed by the release App; merge queue handles the actual merge
+        // and deletes the branch automatically, so no --delete-branch flag here.)
+        await $`gh pr merge ${branch} --squash --auto --repo ${process.env.GH_REPO}`
+
+        // Wait for the queue to land the PR on main
+        console.log("waiting for merge queue to land PR...")
+        while (true) {
+          await new Promise((r) => setTimeout(r, 15_000))
+          const state = (
+            await $`gh pr view ${branch} --json state -q .state --repo ${process.env.GH_REPO}`.text()
+          ).trim()
+          if (state === "MERGED") break
+          if (state === "CLOSED") throw new Error("release PR was closed without merging")
+        }
+
+        // Best-effort branch cleanup in case "Automatically delete head branches" is off
+        await $`git push origin --delete ${branch} --no-verify`.nothrow()
 
         await $`git fetch origin main`
       } else {
