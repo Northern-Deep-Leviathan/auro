@@ -48,30 +48,61 @@ for (const file of pkgjsons) {
 }
 
 if (Script.release) {
+  const branch = `release/v${Script.version}`
   try {
     if (!Script.preview) {
       const status = (await $`git status --porcelain`.text()).trim()
+
       if (status) {
+        // Create a release branch (protection rules forbid direct commits to main)
+        await $`git checkout -b ${branch}`
         await $`git commit -am "release: v${Script.version}"`
+
+        // Rebase on latest main to surface conflicts before opening the PR
+        await $`git fetch origin main`
+        const rebased = await $`git rebase origin/main`.nothrow()
+        if (rebased.exitCode !== 0) {
+          await $`git rebase --abort`.nothrow()
+          throw new Error("release branch conflicts with origin/main — resolve manually and retry")
+        }
+
+        await $`git push origin ${branch} --force-with-lease --no-verify`
+
+        // Open the release PR
+        await $`gh pr create --base main --head ${branch} \
+          --title "release: v${Script.version}" \
+          --body "Automated version bump for v${Script.version}" \
+          --repo ${process.env.GH_REPO}`
+
+        // Wait for required status checks
+        console.log("waiting for PR checks...")
+        await $`gh pr checks ${branch} --watch --repo ${process.env.GH_REPO}`
+
+        // Merge — the release App bypasses approval/queue requirements here
+        await $`gh pr merge ${branch} --squash --delete-branch --repo ${process.env.GH_REPO}`
+
+        await $`git fetch origin main`
       } else {
-        console.log("no file changes, skipping commit")
+        console.log("no file changes, skipping PR")
+        await $`git fetch origin main`
       }
+
+      // Tag the merged commit on origin/main (tags are not branch-protected)
       const existingTag = (await $`git tag -l v${Script.version}`.text()).trim()
       if (existingTag) {
         console.log(`tag v${Script.version} already exists, deleting and re-tagging`)
         await $`git tag -d v${Script.version}`
       }
-      await $`git tag v${Script.version}`
-      await $`git fetch origin`
-      await $`git cherry-pick HEAD..origin/dev`.nothrow()
-      await $`git push origin HEAD --tags --no-verify --force-with-lease`
+      await $`git tag v${Script.version} origin/main`
+      await $`git push origin v${Script.version} --no-verify`
+
       await new Promise((resolve) => setTimeout(resolve, 5_000))
     }
 
     await $`gh release edit v${Script.version} --draft=false --repo ${process.env.GH_REPO}`
   } catch (err) {
     console.error("release failed, deleting draft release:", err)
-    await $`gh release delete v${Script.version} --repo Northern-Deep-Leviathan/auro --cleanup-tag --yes`.nothrow()
+    await $`gh release delete v${Script.version} --repo ${process.env.GH_REPO} --cleanup-tag --yes`.nothrow()
     throw err
   }
 }
